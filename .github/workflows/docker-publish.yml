@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - Dockerizing #Testing purposes 
 
     # Publish `v1.2.3` tags as releases.
     tags:
@@ -42,10 +41,10 @@ jobs:
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
-  # deploy:
-  #   needs: push
-  #   name: deploy
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Deploy docker container webhook
-  #       run: echo $(wget -O - ${{ secrets.DEPLOY_WEBHOOK_URL }} > /dev/null)
+  deploy:
+    needs: push
+    name: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy docker container webhook
+        run: echo $(wget -O - ${{ secrets.DEPLOY_WEBHOOK_URL }} > /dev/null)
