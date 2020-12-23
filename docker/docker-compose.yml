@@ -1,0 +1,33 @@
+services:
+  app:
+    image: ""
+    container_name: herogu-back
+    tty: true
+    expose:
+      - 3000
+    env_file:
+      - app.env
+    networks:
+      - "web"
+    restart: always
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.herogu-api-secure.rule=Host(`herogu.garageisep.com`)"
+      - "traefik.http.routers.herogu-api-secure.entrypoints=websecure"
+      - "traefik.http.routers.herogu-api-secure.tls.certresolver=myhttpchallenge"
+      - "traefik.http.middlewares.redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.herogu-api.rule=Host(`herogu.garageisep.com`)"
+      - "traefik.http.routers.herogu-api.entrypoints=web"
+      - "traefik.http.routers.herogu-api.middlewares=redirect"
+      
+      # Docker-CI configuration
+      - "docker-ci.enable=true"
+      - "docker-ci.name=herogu-back"
+      - "docker-ci.repo-url="
+      - "docker-ci.username=Totodore"
+      - "docker-ci.auth-server=https://ghcr.io"
+      - "docker-ci.password="
+networks:
+  web:
+    external: true
