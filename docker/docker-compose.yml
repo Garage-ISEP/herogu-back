@@ -1,6 +1,6 @@
 services:
   app:
-    image: ""
+    image: docker.pkg.github.com/garage-isep/herogu-back/herogu-back:latest
     container_name: herogu-back
     tty: true
     expose:
@@ -24,9 +24,9 @@ services:
       # Docker-CI configuration
       - "docker-ci.enable=true"
       - "docker-ci.name=herogu-back"
-      - "docker-ci.repo-url="
+      - "docker-ci.repo-url=https://docker.pkg.github.com/garage-isep/herogu-back/herogu-back:"
       - "docker-ci.username=Totodore"
-      - "docker-ci.auth-server=https://ghcr.io"
+      - "docker-ci.auth-server=https://docker.pkg.github.com"
       - "docker-ci.password="
 networks:
   web:
