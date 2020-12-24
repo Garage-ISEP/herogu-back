@@ -23,19 +23,23 @@ class Mailer {
     return this;
   }
   
-  public async sendErrorMail(caller: any, error: string) {
+  public async sendErrorMail(caller: any, ...error: any[]) {
     const callerName = Object.getPrototypeOf(caller).constructor.name;
-    await this._transporter.sendMail({
+    this._transporter.sendMail({
       from: process.env.MAIL_ADDR,
       to: process.env.MAIL_DEST,
       subject: `Erreur Herogu : ${callerName}`,
       html: `
         <h1 style='text-align: center'>Logs : </h1>
-        <p>${error}</p>
+        <p>${error.join(" ")}</p>
       `
-    });
+    }).catch(e => this._logger.info("Error sending error mail"));
   }
 
+  /**
+   * Envoie un mail de vérification
+   * Throw une erreur en cas de non envoie du mail
+   */
   public async sendVerificationMail(email: string, code: string) {
     await this._transporter.sendMail({
       to: email,
@@ -45,7 +49,7 @@ class Mailer {
         Pour vérifier votre mail, cliquez sur ce lien : <br>
         <a href='${process.env.BASE_URL}/verify?token=${code}'>${process.env.BASE_URL}/verify?token=${code}</a>
       `
-    });
+    }).catch(e => { throw new Error("Error sending verification mail") });
   }
 }
 
