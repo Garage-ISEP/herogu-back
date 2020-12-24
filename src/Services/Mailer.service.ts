@@ -1,7 +1,7 @@
 import { Logger } from '../Utils/Logger.service';
 import { createTransport } from "nodemailer";
 
-export class Mailer {
+class Mailer {
 
   private readonly _transporter = createTransport({
     host: process.env.MAIL_HOST,
@@ -10,6 +10,7 @@ export class Mailer {
       user: process.env.MAIL_ADDR,
     },
   });
+  
   private readonly _logger = new Logger(this);
   
   public async init(): Promise<Mailer> {
@@ -24,12 +25,25 @@ export class Mailer {
   
   public async sendErrorMail(caller: any, error: string) {
     const callerName = Object.getPrototypeOf(caller).constructor.name;
-    this._transporter.sendMail({
+    await this._transporter.sendMail({
+      from: process.env.MAIL_ADDR,
       to: process.env.MAIL_DEST,
       subject: `Erreur Herogu : ${callerName}`,
-      text: `
+      html: `
         <h1 style='text-align: center'>Logs : </h1>
         <p>${error}</p>
+      `
+    });
+  }
+
+  public async sendVerificationMail(email: string, code: string) {
+    await this._transporter.sendMail({
+      to: email,
+      from: process.env.MAIL_ADDR,
+      subject: "Vérification mail Herogu",
+      html: `
+        Pour vérifier votre mail, cliquez sur ce lien : <br>
+        <a href='${process.env.BASE_URL}/verify/${code}'>${process.env.BASE_URL}/mail/${code}</a>
       `
     });
   }
