@@ -1,7 +1,6 @@
 import { createExpressServer } from 'routing-controllers';
 import "reflect-metadata";
 
-
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
 
@@ -15,7 +14,7 @@ const sequelize = new Sequelize({
   define: {
     schema: process.env.DB_SCHEMA ?? "herogu"
   },
-  models: [__dirname + '/Models']
+  models: [__dirname + '/Models/DatabaseModels']
 });
 
 
@@ -23,6 +22,6 @@ createExpressServer({
   routePrefix: '/api',
   controllers: [__dirname + '/Controllers/*.js'],
 }).listen(3000, async () => {
-  await sequelize.sync();
+  await sequelize.sync({force:false});
   console.log("server running...");
 });

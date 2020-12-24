@@ -16,6 +16,6 @@
             "./node_modules/@types"
         ],
     },
-    "include": ["./src/"],
-    "exclude": ["node_modules", "package.json", "package-lock.json"]
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "custome_typings", "package.json", "package-lock.json"]
 }
