@@ -12,9 +12,7 @@ import mailerService from "./Mailer.service";
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _logger = new Logger(this);
-  private _statusListeners: {
-    [id: string]: (status: ContainerStatus, exitCode?: number) => void;
-  } = {};
+  private _statusListeners: { [id: string]: (status: ContainerStatus, exitCode?: number) => void } = {};
 
   public async init() {
     try {
@@ -49,13 +47,7 @@ class DockerService {
           allowedActions.includes(data.Action as keyof typeof DockerEventsModel.ContainerEvents) &&
           Object.keys(this._statusListeners).includes(data.Actor.ID)) {
           try {
-            const state = (await this._docker.getContainer(data.Actor.ID).inspect()).State;
-            const handler = this._statusListeners[data.Actor.ID];
-
-            if (state.Restarting) handler(ContainerStatus.Restarting);
-            else if (state.Running) handler(ContainerStatus.Running);
-            else if (state.Dead) handler(ContainerStatus.Error, state.ExitCode);
-            else if (!state.Running) handler(ContainerStatus.Stopped);
+            this._checkStatusEvents(data.Actor.ID);
           } catch (e) {
             this._logger.error(e);
           }
@@ -64,6 +56,16 @@ class DockerService {
     } catch (e) {
       throw new Error("Error creating docker event listener");
     }
+  }
+
+  private async _checkStatusEvents(containerId: string) {
+    const state = (await this._docker.getContainer(containerId).inspect()).State;
+    const handler = this._statusListeners[containerId];
+
+    if (state.Restarting) handler(ContainerStatus.Restarting);
+    else if (state.Running) handler(ContainerStatus.Running);
+    else if (state.Dead) handler(ContainerStatus.Error, state.ExitCode);
+    else if (!state.Running) handler(ContainerStatus.Stopped, state.ExitCode);
   }
 
   /**
@@ -94,6 +96,19 @@ class DockerService {
     }
   }
 
+  private _getLabels(name: string, url: string): ContainerLabels {
+    return {
+      "docker-ci.name": name,
+      "docker-ci.repo-url": url,
+      [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
+      [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
+      [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
+      [`traefik.http.routers.${name}.entrypoint`]: "web",
+      [`traefik.http.routers.${name}.middlewares`]: "redirect",
+      ...DefaultDockerLabels,
+    };
+  }
+
   /**
    * Stop and remove container
    */
@@ -113,55 +128,25 @@ class DockerService {
       await this._removeContainer(containerId);
   }
 
-  private _getLabels(name: string, url: string): ContainerLabels {
-    return {
-      "docker-ci.name": name,
-      "docker-ci.repo-url": url,
-      [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
-      [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
-      [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
-      [`traefik.http.routers.${name}.entrypoint`]: "web",
-      [`traefik.http.routers.${name}.middlewares`]: "redirect",
-      ...DefaultDockerLabels,
-    };
-  }
-
   /**
-   * Get all container logs
-   * Line by line
+   * Listen container logs,
+   * Also print all the previous logs
+   * The listener is called line by line for the logs
+   * Throw an error if the container name doesn't exist
    */
-  public async getContainerLogs(name: string): Promise<string[]> {
+  public async listenContainerLogs(name: string, listener?: (data: string) => void) {
     try {
       const id = await this._getContainerIdFromName(name);
       const options: ContainerLogsConfig = {
         logs: true,
-        stream: false,
-        stdout: true,
-        stderr: true,
-      };
-      return (await this._docker.getContainer(id).attach(options)).read().toString().split("\n");
-    } catch (e) {
-      throw new Error("Cannot find container with name " + name);
-    }
-  }
-
-  /**
-   * Listen container logs,
-   * a listener can be added in parameter
-   * or the data can be listened from the output stream
-   * @param name
-   */
-  public async listenContainerLogs(name: string, listener?: (data: string) => void): Promise<NodeJS.ReadWriteStream> {
-    try {
-      const id = await this._getContainerIdFromName(name);
-      const options: ContainerLogsConfig = {
-        logs: false,
         stream: true,
         stdout: true,
         stderr: true,
       };
       const stream = await this._docker.getContainer(id).attach(options);
-      return listener ? stream.on("data", (data: Buffer | string) => listener(data.toString())) : stream;
+      stream.on("data", (data: Buffer | string) =>
+        data.toString().split('\n').forEach(line => listener(line))
+      );
     } catch (e) {
       throw new Error("Cannot find container with name " + name);
     }
@@ -227,25 +212,19 @@ class DockerService {
 
   /**
    * Get container info
+   * Throw an error if the container doesn't exist
    */
-  public async getContainerInfoFromName(
-    name: string
-  ): Promise<ContainerInspectInfo | null> {
-    try {
-      const id = await this._getContainerIdFromName(name);
-      return await this._docker.getContainer(id).inspect();
-    } catch (e) {
-      this._logger.error(e);
-    }
+  public async getContainerInfoFromName(name: string): Promise<ContainerInspectInfo | null> {
+    const id = await this._getContainerIdFromName(name);
+    return await this._docker.getContainer(id).inspect();
   }
 
   /**
-   * Add ad container status listener
+   * Listen container Status changes
+   * The handler will be called with the actual status at the end of this method
+   * Throw an error if there is no container with this name
    */
-  public async registerContainerStatusListener(
-    name: string,
-    handler: (status: ContainerStatus, exitCode: number) => void
-  ): Promise<void> {
+  public async listenContainerStatus(name: string, handler: (status: ContainerStatus, exitCode: number) => void): Promise<void> {
     let id: string;
     try {
       id = await this._getContainerIdFromName(name);
@@ -253,6 +232,7 @@ class DockerService {
       throw new Error("Cannot find container with name " + name);
     }
     this._statusListeners[id] = handler;
+    await this._checkStatusEvents(id).catch((e) => console.error(e));
   }
 }
 
