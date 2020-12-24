@@ -10,7 +10,7 @@ class Mailer {
       user: process.env.MAIL_ADDR,
     },
   });
-  
+
   private readonly _logger = new Logger(this);
   
   public async init(): Promise<Mailer> {
@@ -43,7 +43,7 @@ class Mailer {
       subject: "Vérification mail Herogu",
       html: `
         Pour vérifier votre mail, cliquez sur ce lien : <br>
-        <a href='${process.env.BASE_URL}/verify/${code}'>${process.env.BASE_URL}/mail/${code}</a>
+        <a href='${process.env.BASE_URL}/verify?token=${code}'>${process.env.BASE_URL}/verify?token=${code}</a>
       `
     });
   }
