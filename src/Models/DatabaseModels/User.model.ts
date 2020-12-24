@@ -1,4 +1,4 @@
-import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement } from 'sequelize-typescript';
+import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
 import Project from './Project.model';
 import Role from './Role.model';
 
@@ -20,7 +20,8 @@ class User extends Model<User> {
   @Column({ type: DataType.STRING(255) })
   mail: string;
 
-  @Column({ type: DataType.STRING(8) })
+  @Unique
+  @Column({ type: DataType.STRING(9) })
   studentId: string;
 
   @Column({ type: DataType.STRING(255) })

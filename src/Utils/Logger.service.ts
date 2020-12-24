@@ -1,8 +1,8 @@
 export class Logger {
   private _name: string;
 
-  constructor(_instantiator: object) {
-    this._name = Object.getPrototypeOf(_instantiator).constructor.name;
+  constructor(_instantiator: object, displayName?: string) {
+    this._name = displayName ?? Object.getPrototypeOf(_instantiator).constructor.name;
   }
 
   log(...params: any[]) {

@@ -47,7 +47,7 @@ class Mailer {
       subject: "Vérification mail Herogu",
       html: `
         Pour vérifier votre mail, cliquez sur ce lien : <br>
-        <a href='${process.env.BASE_URL}/verify?token=${code}'>${process.env.BASE_URL}/verify?token=${code}</a>
+        <a href='${process.env.BASE_URL}/verify?token=${code}'>lien</a>
       `
     }).catch(e => { throw new Error("Error sending verification mail") });
   }
