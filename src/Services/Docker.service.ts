@@ -109,7 +109,8 @@ class DockerService {
 
   public async removeContainerFromName(name: string) {
     const containerId = await this._getContainerIdFromName(name);
-    await this._removeContainer(containerId);
+    if (containerId)
+      await this._removeContainer(containerId);
   }
 
   private _getLabels(name: string, url: string): ContainerLabels {
@@ -199,9 +200,9 @@ class DockerService {
           name: config.name,
           Tty: true,
           Labels: labels as any,
-          // ExposedPorts: {
-          //   '80': 80
-          // },
+          ExposedPorts: {
+            '80': {}
+          },
           Env: Object.keys(config.env).map(
             (key) => key + "=" + config.env[key]
           ),
@@ -211,7 +212,7 @@ class DockerService {
             },
           },
         });
-        await container.start();
+        await container.start({});
         this._logger.info("Container", config.name, "created and started");
         return container;
       } catch (e) {
