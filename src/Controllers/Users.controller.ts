@@ -1,10 +1,15 @@
-import { Controller, Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull } from 'routing-controllers';
+import { Controller, Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController } from 'routing-controllers';
 import User from '../Models/DatabaseModels/User.model';
 import UserReq from '../Models/RequestModels/User.req.model'
 import * as bcrypt from 'bcrypt';
 
-@Controller()
+import { Logger } from '../Utils/Logger.service';
+
+@JsonController()
 export class UserController {
+
+  private readonly log = new Logger(this);
+
   @Get('/users')
   async getAll() {
     return await User.findAll();
@@ -19,9 +24,10 @@ export class UserController {
   @OnNull(500)
   @Post('/users')
   async post(@Body() user: UserReq) {
+    console.log(user);
     const hashed_pswd = await bcrypt.hash(user.password, 10);
     const first_name = user.email.match(/^\w+/)[0] ?? "undefined";
-    const last_name = user.email.match(/(?:\.)\w+/)[0] ?? "undefined";
+    const last_name = user.email.match(/(?:\.)\w+/)[0].replace(/\./, "") ?? "undefined";
     const new_user = new User({
       first_name: first_name,
       last_name: last_name,
@@ -33,10 +39,12 @@ export class UserController {
       await new_user.save();
     }
     catch (e) {
+      this.log.error(e, user);
       return null
     }
+    this.log.info("")
     const verif_token = await bcrypt.hash(user.student_id + user.email, 10);
-    return 'Saving user...';
+    return user;
   }
 
   @Patch('/users/:id')
