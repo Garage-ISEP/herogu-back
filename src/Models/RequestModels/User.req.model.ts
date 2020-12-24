@@ -1,5 +1,4 @@
 import { IsEmail, IsNotEmpty, MinLength, ValidateIf } from 'class-validator';
-import { NotNull } from 'sequelize-typescript';
 
 export default class UserReq {
 
