@@ -96,10 +96,11 @@ class DockerService {
     }
   }
 
-  private _getLabels(name: string, url: string): ContainerLabels {
+  private _getLabels(name: string, url: string, email: string): ContainerLabels {
     return {
       "docker-ci.name": name,
       "docker-ci.repo-url": url,
+      "docker-ci.email": email,
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
       [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
@@ -159,7 +160,7 @@ class DockerService {
    * In case of failure, it retries 3 times
    */
   public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    const labels = this._getLabels(config.name, config.url);
+    const labels = this._getLabels(config.name, config.url, config.email);
     try {
       (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url));
     } catch (e) {
