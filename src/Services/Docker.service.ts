@@ -6,6 +6,7 @@ import { DockerEventsModel } from './Model/DockerEvents';
 import * as Dockerode from "dockerode";
 import { Container, ContainerInspectInfo } from "dockerode";
 import { Logger } from "../Utils/Logger.service";
+import mailerService from './Mailer.service';
 
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
@@ -15,6 +16,8 @@ class DockerService {
   async init() {
     try {
       await this._docker.ping();
+      await this._listenStatusEvents();
+      this._logger.log("DockerService enabled");
     } catch (e) {
       this._logger.log("Impossible to reach docker sock");
       this._logger.error(e);
@@ -22,12 +25,17 @@ class DockerService {
     }
   }
 
+  /**
+   * Listen all docker container event,
+   * If a container listener is added then the handler for this listener is triggerred
+   */
   async _listenStatusEvents() {
     const allowedActions: (Partial<keyof typeof DockerEventsModel.ContainerEvents>)[] = [
       "create", "destroy", "die", "kill", "restart", "start", "stop", "update"
     ];
     (await this._docker.getEvents()).on("data", async (rawData) => {
       const data: DockerEventsModel.EventResponse = JSON.parse(rawData);
+
       if (data.Type == "container"
         && allowedActions.includes(data.Action as keyof typeof DockerEventsModel.ContainerEvents)
         && Object.keys(this._statusListeners).includes(data.Actor.ID)) {
@@ -94,27 +102,50 @@ class DockerService {
    * @param config 
    */
   public async createContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    try {
-      const labels: ContainerLabels = {
-        "docker-ci.enable": 'true',
-        "docker-ci.name": config.name,
-        "docker-ci.repo-url": config.url,
-        "traefik.enable": 'true',
-        [`traefik.http.routers.${config.name}-secure.rule`]: `Host(\`${config.name}.herogu.garageisep.com\`)`,
-        [`traefik.http.routers.${config.name}-secure.entrypoints`]: "websecure",
-        [`traefik.http.routers.${config.name}-secure.certresolver`]: "myhttpchallenge",
-        "traefik.http.middlewares.redirect.redirectscheme.scheme": "https",
-        [`traefik.http.routers.${config.name}.entrypoint`]: "web",
-        [`traefik.http.routers.${config.name}.middlewares`]: "redirect",
-      };
-      return await this._docker.createContainer({
-        Image: config.name,
-        Labels: labels as any
-      });
-    } catch (e) {
-      this._logger.error(e);
+    const labels: ContainerLabels = {
+      "docker-ci.enable": 'true',
+      "docker-ci.name": config.name,
+      "docker-ci.repo-url": config.url,
+
+      "traefik.enable": 'true',
+      [`traefik.http.routers.${config.name}-secure.rule`]: `Host(\`${config.name}.herogu.garageisep.com\`)`,
+      [`traefik.http.routers.${config.name}-secure.entrypoints`]: "websecure",
+      [`traefik.http.routers.${config.name}-secure.certresolver`]: "myhttpchallenge",
+      "traefik.http.middlewares.redirect.redirectscheme.scheme": "https",
+      [`traefik.http.routers.${config.name}.entrypoint`]: "web",
+      [`traefik.http.routers.${config.name}.middlewares`]: "redirect",
+    };
+    let error: string;
+    for (let i = 0; i < 3; i++) {
+      try {
+        this._logger.log("test " + i);
+        return await this._docker.createContainer({
+          Image: config.url,
+          name: config.name,
+          Tty: true,
+          Labels: labels as any,
+          ExposedPorts: {
+            '80': 80
+          },
+          Env: Object.keys(config.env).map(key => key + '=' + config.env[key]),
+          NetworkingConfig: {
+            EndpointsConfig: {
+              "web": {}
+            }
+          },
+        });
+      } catch (e) {
+        error = e;
+        this._logger.error(e);
+      }
     }
+    this._logger.log("Container not created after 3 times, incident will be reported.");
+    mailerService.sendErrorMail(this, error);
   }
+
+  /**
+   * Get a container from its name
+   */
   public async _getContainerIdFromName(name: string): Promise<string | null> {
     try {
       for (const el of await this._docker.listContainers()) {
@@ -123,9 +154,13 @@ class DockerService {
       }
     } catch (e) {
       this._logger.error(e);
+      throw new Error("Cannot find container with name" + name);
     }
   }
 
+  /**
+   * Get container info
+   */
   public async getContainerInfoFromName(name: string): Promise<ContainerInspectInfo | null> {
     try {
       const id = await this._getContainerIdFromName(name);
@@ -135,6 +170,9 @@ class DockerService {
     }
   }
 
+  /**
+   * Add ad container status listener
+   */
   public async registerContainerStatusListener(name: string, handler: (status: ContainerStatus, exitCode: number) => void): Promise<void> {
     let id: string;
     try {
