@@ -1,12 +1,12 @@
 import { ExpressMiddlewareInterface } from 'routing-controllers';
 import * as jwt from "jsonwebtoken";
 
-import User from "../../Models/DatabaseModels/User.model";
-import Role from "../../Models/DatabaseModels/Role.model";
+import User from "../Models/DatabaseModels/User.model";
+import Role from "../Models/DatabaseModels/Role.model";
 
-import {Logger} from '../../Utils/Logger.service';
+import {Logger} from '../Utils/Logger.service';
 
-export default class AdminMidleware implements ExpressMiddlewareInterface {
+export default class AdminMiddleware implements ExpressMiddlewareInterface {
 
   private _logger = new Logger(this);
 

@@ -4,8 +4,8 @@ import UserReq from '../Models/RequestModels/User.req.model'
 
 import * as bcrypt from 'bcrypt';
 
-import AdminMidleware from "../Services/MidleWares/AdminMidleWare";
-import JWTMidleware from "../Services/MidleWares/JWTMidleWare";
+import AdminMiddleware from "../Middlewares/AdminMiddleware";
+import JWTMiddleware from "../Middlewares/JWTMiddleware";
 
 import { Logger } from '../Utils/Logger.service';
 
@@ -15,8 +15,8 @@ export class UserController {
   private readonly _logger = new Logger(this);
 
   @Get('/users')
-  @UseBefore(JWTMidleware)
-  @UseBefore(AdminMidleware)
+  @UseBefore(JWTMiddleware)
+  @UseBefore(AdminMiddleware)
   @OnNull(500)
   async getAll() {
     try {
@@ -30,8 +30,8 @@ export class UserController {
   }
 
   @Get('/users/:studentId')
-  @UseBefore(JWTMidleware)
-  @UseBefore(AdminMidleware)
+  @UseBefore(JWTMiddleware)
+  @UseBefore(AdminMiddleware)
   @OnNull(500)
   async getOne(@Param('studentId') studentId: string) {
     try {

@@ -1,9 +1,9 @@
 import { ExpressMiddlewareInterface } from 'routing-controllers';
 import * as jwt from "jsonwebtoken";
 
-import {Logger} from '../../Utils/Logger.service';
+import {Logger} from '../Utils/Logger.service';
 
-export default class JWTMidleware implements ExpressMiddlewareInterface {
+export default class JWTMiddleware implements ExpressMiddlewareInterface {
 
   private _logger = new Logger(this);
 
