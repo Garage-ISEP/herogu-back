@@ -1,6 +1,6 @@
 import { Body, Post, OnNull, JsonController, HttpError } from 'routing-controllers';
-import User from '../Models/DatabaseModels/User.model';
-import AuthReq from '../Models/RequestModels/Auth.req.model'
+import { User } from '../Models/DatabaseModels';
+import { LoginRequest } from './RequestValidator'
 
 import * as bcrypt from 'bcrypt';
 import * as jwt from "jsonwebtoken";
@@ -14,7 +14,7 @@ export class AuthController {
 
   @Post('/auth/login')
   @OnNull(500)
-  async login(@Body({ required: true }) user: AuthReq) {
+  async login(@Body({ required: true }) user: LoginRequest) {
     let dbUser: any;
     try {
       dbUser = await User.findOne({ where: { studentId:user.student_id } })

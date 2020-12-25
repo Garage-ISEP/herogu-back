@@ -1,8 +1,8 @@
 import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
-import User from './User.model';
+import { User } from '../DatabaseModels';
 
 @Table
-class Role extends Model<Role> {
+export class Role extends Model<Role> {
 
   @PrimaryKey
   @AutoIncrement
@@ -16,5 +16,3 @@ class Role extends Model<Role> {
   users: User;
   
 }
-
-export default Role;

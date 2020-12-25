@@ -1,8 +1,8 @@
 import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
-import User from './User.model';
+import { User } from '../DatabaseModels';
 
 @Table
-class Project extends Model<Project> {
+export class Project extends Model<Project> {
 
   @PrimaryKey
   @AutoIncrement
@@ -28,5 +28,3 @@ class Project extends Model<Project> {
   user: User;
   
 }
-
-export default Project;

@@ -1,6 +1,6 @@
 import { IsNotEmpty, MinLength, ValidateIf } from 'class-validator';
 
-export default class AuthReq {
+export class LoginRequest {
 
   @MinLength(8)
   @IsNotEmpty()
