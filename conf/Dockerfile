@@ -4,7 +4,7 @@ RUN apt-get update -y
 
 RUN docker-php-ext-install -j$(nproc) pdo pdo_mysql
 
-COPY conf/php.ini /etc/php/php.ini
+COPY php.ini /etc/php/php.ini
 
 LABEL ORIGIN="garage"
 
