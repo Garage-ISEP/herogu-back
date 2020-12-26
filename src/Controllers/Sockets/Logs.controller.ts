@@ -10,7 +10,7 @@ export class LogsController {
 
   @OnConnect()
   connect(@ConnectedSocket() socket: Socket, @NspParam("name") name: string) {
-    this._logger.log("New connexion", typeof socket, socket);
+    this._logger.log("New connexion");
     try {
       dockerService.listenContainerLogs(name, data => this._onLog(socket, data));
     } catch (e) {
@@ -21,7 +21,7 @@ export class LogsController {
 
   @OnDisconnect()
   disconnect(@ConnectedSocket() socket: Socket) {
-    this._logger.log("Connexion stopped", typeof socket, socket);
+    this._logger.log("Connexion stopped");
   }
 
   private _onLog(socket: Socket, message: string) {

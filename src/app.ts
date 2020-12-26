@@ -1,3 +1,4 @@
+import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import "reflect-metadata";
 import { LogsController } from './Controllers/Sockets/Logs.controller';
 import { useExpressServer } from 'routing-controllers';
@@ -29,6 +30,7 @@ useExpressServer(app, {
 
 useSocketServer(io, {
   controllers: [LogsController],
+  middlewares: [JWTSocketMiddleware]
 });
 
 server.listen(3000, async () => {
