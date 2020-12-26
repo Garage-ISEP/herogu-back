@@ -211,6 +211,11 @@ class DockerService {
     mailerService.sendErrorMail(this, "Error starting new container : ", error);
   }
 
+  public async stopContainerFromName(name: string) {
+    const id = await this._getContainerIdFromName(name);
+    await this._docker.getContainer(id).stop();
+  }
+
   /**
    * Get container info
    * Throw an error if the container doesn't exist
