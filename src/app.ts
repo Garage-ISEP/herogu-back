@@ -1,6 +1,10 @@
 import { Action, createExpressServer, InternalServerError, UnauthorizedError } from 'routing-controllers';
+import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import "reflect-metadata";
-
+import { LogsController } from './Controllers/Sockets/Logs.controller';
+import { useExpressServer } from 'routing-controllers';
+import { useSocketServer } from 'socket.io-ts-controllers';
+import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
 
@@ -21,8 +25,11 @@ const sequelize = new Sequelize({
   models: [User, Role, Project]
 });
 
+const app = express();
+const server = require("http").Server(app);
+const io = require("socket.io")(server);
 
-createExpressServer({
+useExpressServer({
   cors: {
     origin: 'https://herogu.garageisep.com'
   },
@@ -82,7 +89,14 @@ createExpressServer({
       throw new InternalServerError("DB Failing");
     }
   },
-}).listen(3000, async () => {
+});
+
+useSocketServer(io, {
+  controllers: [LogsController],
+  middlewares: [JWTSocketMiddleware]
+});
+
+server.listen(3000, async () => {
   await sequelize.sync({force:false});
-  console.log("server running...");
+  console.log("server running on", process.env.BASE_URL);
 });
