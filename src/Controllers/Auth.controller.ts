@@ -1,4 +1,4 @@
-import { Body, Post, OnNull, JsonController, HttpError, InternalServerError, BadRequestError } from 'routing-controllers';
+import { Body, OnNull, JsonController, HttpError, InternalServerError, BadRequestError, Post } from 'routing-controllers';
 import { User } from '../Models/DatabaseModels';
 import { LoginRequest } from './RequestValidator'
 
