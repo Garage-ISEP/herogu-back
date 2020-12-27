@@ -1,6 +1,9 @@
 import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError } from 'routing-controllers';
+
 import { User } from '../Models/DatabaseModels';
 import { CreateUserRequest } from './RequestValidator'
+
+import CaptchaMiddleware from "../Middlewares/CaptchaMiddleware";
 
 import * as bcrypt from 'bcrypt';
 import mailer from "../Services/Mailer.service";
@@ -39,6 +42,7 @@ export class UserController {
   }
 
   @Post('/users')
+  @UseBefore(CaptchaMiddleware)
   async post(@Body({ required: true }) user: CreateUserRequest) {
     try {
       if (await User.count({ where: { studentId: user.student_id } }) !== 0) {
