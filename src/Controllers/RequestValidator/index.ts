@@ -1,3 +1,3 @@
-export { LoginRequest } from './Auth.req.model';
-export { CreateProjectRequest } from './Project.req.model';
-export { CreateUserRequest } from './User.req.model';
+export { LoginRequest } from './AuthValidator';
+export { CreateProjectRequest } from './ProjectValidator';
+export { CreateUserRequest } from './UserValidator';

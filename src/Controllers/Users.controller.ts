@@ -3,6 +3,7 @@ import { User } from '../Models/DatabaseModels';
 import { CreateUserRequest } from './RequestValidator'
 
 import * as bcrypt from 'bcrypt';
+import mailer from "../Services/Mailer.service";
 
 import { Logger } from '../Utils/Logger.service';
 
@@ -66,7 +67,17 @@ export class UserController {
       throw new InternalServerError("DB Failing");
     }
     this._logger.info("New user created : ", user);
-    return user;
+    const verifCode = await bcrypt.hash(new_user.studentId, 10);
+    try {
+      mailer.sendVerificationMail(new_user.mail, verifCode);
+    }
+    catch (e) {
+      this._logger.error(e, new_user)
+    }
+    return JSON.stringify({
+      "status": "succes",
+      "user": user
+    });
   }
 
   /* @Patch('/users/:id')

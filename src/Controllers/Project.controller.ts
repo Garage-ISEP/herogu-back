@@ -1,4 +1,4 @@
-import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, Authorized, CurrentUser } from 'routing-controllers';
+import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, Authorized, CurrentUser, InternalServerError, BadRequestError } from 'routing-controllers';
 import { User, Project } from '../Models/DatabaseModels';
 import { CreateProjectRequest } from './RequestValidator'
 
@@ -12,7 +12,6 @@ export class ProjectController {
 
   @Get('/projects/all')
   @Authorized()
-  @OnNull(500)
   async getAll() {
     try {
       const projects = await Project.findAll();
@@ -20,13 +19,12 @@ export class ProjectController {
     }
     catch (e) {
       this._logger.error(e);
-      return null;
+      throw new InternalServerError("DB Failing");
     }
   }
 
   @Get('/projects/:id')
   @Authorized()
-  @OnNull(500)
   async getOne(@Param('id') id: string) {
     try {
       const projects = await Project.findOne({ where: { id } })
@@ -34,26 +32,27 @@ export class ProjectController {
     }
     catch (e) {
       this._logger.error(e);
-      return null
+      throw new InternalServerError("DB Failing");
     }
   }
 
   @Get('/projects')
   async getUserProjects(@CurrentUser({ required: true }) user: User) {
-    
+    return "heelo";
   }
 
-  @OnNull(500)
   @Post('/projects')
   async post(@Body({ required: true }) project: CreateProjectRequest) {
+    let c: number;
     try {
-      if (await Project.count({ where: { docker_img_link: project.docker_img_link } }) !== 0) {
-        return new HttpError(400, "This image is already used by an other project");
-      }
+      c = await Project.count({ where: { docker_img_link: project.docker_img_link } });
     }
     catch (e) {
       this._logger.error(e);
-      return null;
+      throw new InternalServerError("DB Failing");
+    }
+    if (c !== 0) {
+      return new BadRequestError("This image is already used by an other project");
     }
     // Creer projet
   }

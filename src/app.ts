@@ -69,7 +69,12 @@ createExpressServer({
     // Get user by studentId
     try {
       user = await User.findOne({ where: { studentId: uid }, include: [Role], attributes: { exclude: ['hash_pswd'] } });
-      return user;
+      if (user.verified === true) {
+        return user;
+      }
+      else {
+        return;
+      }
     }
     catch (e) {
       throw new InternalServerError("DB Failing");
