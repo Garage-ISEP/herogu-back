@@ -27,6 +27,9 @@ export class AuthController {
     if (! await bcrypt.compare(user.password, hash)) {
       return new HttpError(401, "Incorect Password");
     }
+    if (dbUser.verified === false) { 
+      throw new BadRequestError("User is not verified");
+    }
     const token = jwt.sign(
       { uid: dbUser.studentId, mail: dbUser.mail },
       process.env.JWT_SECRET,
@@ -50,6 +53,7 @@ export class AuthController {
     users.forEach(user => {
       if (bcrypt.compare(user.studentId, token)) {
         user.verified = true;
+        user.save();
         return JSON.stringify({
           "status": "succes",
           "user": user
