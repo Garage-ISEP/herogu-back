@@ -23,7 +23,9 @@ const sequelize = new Sequelize({
 
 
 createExpressServer({
-  routePrefix: '/api',
+  cors: {
+    origin: 'https://herogu.garageisep.com'
+  },
   controllers: [__dirname + '/Controllers/*.js'],
   async authorizationChecker(action: Action) {
     const token = action.request.headers["auth"]
