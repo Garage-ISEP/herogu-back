@@ -1,3 +1,4 @@
+import { Action, createExpressServer, InternalServerError, UnauthorizedError } from 'routing-controllers';
 import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import "reflect-metadata";
 import { LogsController } from './Controllers/Sockets/Logs.controller';
@@ -6,6 +7,10 @@ import { useSocketServer } from 'socket.io-ts-controllers';
 import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
+
+import * as jwt from "jsonwebtoken";
+
+import { User, Role, Project } from "./Models/DatabaseModels";
 
 const sequelize = new Sequelize({
   logging: false,
@@ -17,15 +22,73 @@ const sequelize = new Sequelize({
   define: {
     schema: process.env.DB_SCHEMA ?? "herogu"
   },
-  models: [__dirname + '/Models/DatabaseModels'],
+  models: [User, Role, Project]
 });
 
 const app = express();
 const server = require("http").Server(app);
 const io = require("socket.io")(server);
 
-useExpressServer(app, {
+useExpressServer({
+  cors: {
+    origin: 'https://herogu.garageisep.com'
+  },
   controllers: [__dirname + '/Controllers/*.js'],
+  async authorizationChecker(action: Action) {
+    const token = action.request.headers["auth"]
+    let jwtPayload: any;
+    // Read jwt token from header
+    try {
+      jwtPayload = await <any>jwt.verify(token, process.env.JWT_SECRET);
+    }
+    catch (e) {
+      throw new UnauthorizedError("Invalid token");
+    }
+
+    const uid: string = jwtPayload.uid;
+    let user: any;
+    // Get user by studentId from DB
+    try {
+      user = await User.findOne({ where: { studentId: uid }, include: [Role], attributes: { exclude: ['hash_pswd'] } });
+    }
+    catch (e) {
+      throw new InternalServerError("DB Failing");
+    }
+    // Check Role
+    try {
+      return user.role.name === "ADMIN";
+    }
+    catch (e) {
+      throw new InternalServerError("Can't retreive User from request");
+    }
+  },
+  async currentUserChecker(action: Action) {
+    const token = action.request.headers["auth"]
+    let jwtPayload: any;
+    // Read JWT token from header
+    try {
+      jwtPayload = await <any>jwt.verify(token, process.env.JWT_SECRET);
+    }
+    catch (e) {
+      throw new UnauthorizedError("Invalid token");
+    }
+
+    const uid: string = jwtPayload.uid;
+    let user: any;
+    // Get user by studentId
+    try {
+      user = await User.findOne({ where: { studentId: uid }, include: [Role], attributes: { exclude: ['hash_pswd'] } });
+      if (user.verified === true) {
+        return user;
+      }
+      else {
+        return;
+      }
+    }
+    catch (e) {
+      throw new InternalServerError("DB Failing");
+    }
+  },
 });
 
 useSocketServer(io, {

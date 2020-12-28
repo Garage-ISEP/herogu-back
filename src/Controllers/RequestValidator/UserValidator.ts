@@ -1,6 +1,6 @@
 import { IsEmail, IsNotEmpty, MinLength, ValidateIf } from 'class-validator';
 
-export default class UserReq {
+export class CreateUserRequest {
 
   @IsEmail()
   @IsNotEmpty()

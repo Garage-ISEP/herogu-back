@@ -1,11 +1,12 @@
-import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore } from 'routing-controllers';
-import User from '../Models/DatabaseModels/User.model';
-import UserReq from '../Models/RequestModels/User.req.model'
+import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError } from 'routing-controllers';
+
+import { User } from '../Models/DatabaseModels';
+import { CreateUserRequest } from './RequestValidator'
+
+import CaptchaMiddleware from "../Middlewares/CaptchaMiddleware";
 
 import * as bcrypt from 'bcrypt';
-
-import AdminMiddleware from "../Middlewares/AdminMiddleware";
-import JWTMiddleware from "../Middlewares/JWTMiddleware";
+import mailer from "../Services/Mailer.service";
 
 import { Logger } from '../Utils/Logger.service';
 
@@ -15,9 +16,7 @@ export class UserController {
   private readonly _logger = new Logger(this);
 
   @Get('/users')
-  @UseBefore(JWTMiddleware)
-  @UseBefore(AdminMiddleware)
-  @OnNull(500)
+  @Authorized()
   async getAll() {
     try {
       const users = await User.findAll({ attributes: { exclude: ['hash_pswd'] } });
@@ -25,36 +24,34 @@ export class UserController {
     }
     catch (e) {
       this._logger.error(e);
-      return null;
+      throw new InternalServerError("DB Failing");
     }
   }
 
   @Get('/users/:studentId')
-  @UseBefore(JWTMiddleware)
-  @UseBefore(AdminMiddleware)
-  @OnNull(500)
+  @Authorized()
   async getOne(@Param('studentId') studentId: string) {
     try {
       const user = await User.findOne({ where: { studentId } })
-      return user !== null ? JSON.stringify(user) : new HttpError(400, "Invalid Id");
+      return user !== null ? JSON.stringify(user) : new BadRequestError("User not found");
     }
     catch (e) {
       this._logger.error(e);
-      return null
+      throw new InternalServerError("DB Failing");
     }
   }
 
-  @OnNull(500)
   @Post('/users')
-  async post(@Body({ required: true }) user: UserReq) {
+  @UseBefore(CaptchaMiddleware)
+  async post(@Body({ required: true }) user: CreateUserRequest) {
     try {
       if (await User.count({ where: { studentId: user.student_id } }) !== 0) {
-        return new HttpError(400, "User with this studentId aleady exist");
+        return new BadRequestError("User with this studentId aleady exist");
       }
     }
     catch (e) {
       this._logger.error(e);
-      return null;
+      throw new InternalServerError("DB Failing");
     }
     const hashed_pswd = await bcrypt.hash(user.password, 10);
     const first_name = user.email.match(/^\w+/)[0] ?? "undefined";
@@ -71,11 +68,20 @@ export class UserController {
     }
     catch (e) {
       this._logger.error(e, user);
-      return null
+      throw new InternalServerError("DB Failing");
     }
     this._logger.info("New user created : ", user);
-    const verif_token = await bcrypt.hash(user.student_id + user.email, 10);
-    return user;
+    const verifCode = await bcrypt.hash(new_user.studentId, 10);
+    try {
+      mailer.sendVerificationMail(new_user.mail, verifCode);
+    }
+    catch (e) {
+      this._logger.error(e, new_user)
+    }
+    return JSON.stringify({
+      "status": "succes",
+      "user": user
+    });
   }
 
   /* @Patch('/users/:id')

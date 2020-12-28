@@ -1,10 +1,9 @@
 import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
-import Project from './Project.model';
-import Role from './Role.model';
+import { Role, Project } from '../DatabaseModels';
 
 
 @Table
-class User extends Model<User> {
+export class User extends Model<User> {
 
   @PrimaryKey
   @AutoIncrement
@@ -43,5 +42,3 @@ class User extends Model<User> {
   projects: Project;
 
 }
-
-export default User;
