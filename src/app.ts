@@ -1,9 +1,10 @@
+import "reflect-metadata";
 import { Action, InternalServerError, UnauthorizedError } from 'routing-controllers';
 import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
-import "reflect-metadata";
 import { LogsController } from './Controllers/Sockets/Logs.controller';
 import { useExpressServer } from 'routing-controllers';
 import { useSocketServer } from 'socket.io-ts-controllers';
+import * as cors from "cors";
 import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
@@ -26,10 +27,8 @@ const sequelize = new Sequelize({
 });
 
 const app = express();
-const server = require("http").Server(app);
-const io = require("socket.io")(server);
 
-useExpressServer({
+useExpressServer(app, {
   cors: {
     origin: '*',
   },
@@ -90,6 +89,9 @@ useExpressServer({
     }
   },
 });
+
+const server = require("http").Server(app);
+const io = require("socket.io")(server);
 
 useSocketServer(io, {
   controllers: [LogsController],
