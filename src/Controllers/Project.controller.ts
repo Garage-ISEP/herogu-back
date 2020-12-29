@@ -15,7 +15,7 @@ export class ProjectController {
   async getAll() {
     try {
       const projects = await Project.findAll();
-      return JSON.stringify(projects);
+      return projects.map(el => el.get());
     }
     catch (e) {
       this._logger.error(e);
@@ -28,7 +28,7 @@ export class ProjectController {
   async getOne(@Param('id') id: string) {
     try {
       const projects = await Project.findOne({ where: { id } })
-      return projects !== null ? JSON.stringify(projects) : new HttpError(400, "Invalid Id");
+      return projects !== null ? projects.get() : new HttpError(400, "Invalid Id");
     }
     catch (e) {
       this._logger.error(e);

@@ -20,7 +20,7 @@ export class UserController {
   async getAll() {
     try {
       const users = await User.findAll({ attributes: { exclude: ['hash_pswd'] } });
-      return JSON.stringify(users);
+      return users.map(user => user.get());
     }
     catch (e) {
       this._logger.error(e);
@@ -33,7 +33,7 @@ export class UserController {
   async getOne(@Param('studentId') studentId: string) {
     try {
       const user = await User.findOne({ where: { studentId } })
-      return user !== null ? JSON.stringify(user) : new BadRequestError("User not found");
+      return user !== null ? user.get() : new BadRequestError("User not found");
     }
     catch (e) {
       this._logger.error(e);
@@ -78,10 +78,10 @@ export class UserController {
     catch (e) {
       this._logger.error(e, new_user)
     }
-    return JSON.stringify({
+    return {
       "status": "succes",
       "user": user
-    });
+    };
   }
 
   /* @Patch('/users/:id')

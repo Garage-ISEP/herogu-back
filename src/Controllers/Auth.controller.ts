@@ -14,7 +14,7 @@ export class AuthController {
 
   @Post('/auth/login')
   async login(@Body({ required: true }) user: LoginRequest) {
-    let dbUser: any;
+    let dbUser: User;
     try {
       dbUser = await User.findOne({ where: { studentId:user.student_id } })
     }
@@ -35,15 +35,15 @@ export class AuthController {
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
-    return JSON.stringify({
+    return {
       "status": "succes",
       "token": token
-    });
+    };
   }
 
   @Post('/auth/verify')
   async verify(@Body({ required: true }) token: string) {
-    let users;
+    let users: User[];
     try {
       users = await User.findAll({where: { verified: false }, attributes: { exclude: ['hash_pswd'] }})
     }
@@ -54,13 +54,12 @@ export class AuthController {
       if (bcrypt.compare(user.studentId, token)) {
         user.verified = true;
         user.save();
-        return JSON.stringify({
+        return {
           "status": "succes",
           "user": user
-        });
+        };
       }
     });
     throw new BadRequestError("Invalide verification token");
   }
-
 }
