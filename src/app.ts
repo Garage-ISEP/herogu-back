@@ -1,4 +1,4 @@
-import { Action, createExpressServer, InternalServerError, UnauthorizedError } from 'routing-controllers';
+import { Action, InternalServerError, UnauthorizedError } from 'routing-controllers';
 import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import "reflect-metadata";
 import { LogsController } from './Controllers/Sockets/Logs.controller';
@@ -31,10 +31,10 @@ const io = require("socket.io")(server);
 
 useExpressServer({
   cors: {
-    origin: 'https://herogu.garageisep.com'
+    origin: '*',
   },
   controllers: [__dirname + '/Controllers/*.js'],
-  async authorizationChecker(action: Action) {
+  authorizationChecker: async (action: Action) => {
     const token = action.request.headers["auth"]
     let jwtPayload: any;
     // Read jwt token from header
@@ -62,7 +62,7 @@ useExpressServer({
       throw new InternalServerError("Can't retreive User from request");
     }
   },
-  async currentUserChecker(action: Action) {
+  currentUserChecker: async (action: Action) => {
     const token = action.request.headers["auth"]
     let jwtPayload: any;
     // Read JWT token from header
