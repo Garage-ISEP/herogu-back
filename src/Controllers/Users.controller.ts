@@ -1,6 +1,6 @@
-import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError } from 'routing-controllers';
+import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError, CurrentUser } from 'routing-controllers';
 
-import { User } from '../Models/DatabaseModels';
+import { User, Project } from '../Models/DatabaseModels';
 import { CreateUserRequest } from './RequestValidator'
 
 import CaptchaMiddleware from "../Middlewares/CaptchaMiddleware";
@@ -11,11 +11,24 @@ import mailer from "../Services/Mailer.service";
 import { Logger } from '../Utils/Logger.service';
 
 @JsonController()
+export class ProfilController {
+
+  private readonly _logger = new Logger(this);
+
+  @Get('/me')
+  async getMe(@CurrentUser({ required: true }) user: User) {
+    console.log(user)
+    return user.toJSON();
+  }
+}
+
+
+@JsonController("/users")
 export class UserController {
 
   private readonly _logger = new Logger(this);
 
-  @Get('/users')
+  @Get('/')
   @Authorized()
   async getAll() {
     try {
@@ -28,11 +41,11 @@ export class UserController {
     }
   }
 
-  @Get('/users/:studentId')
+  @Get('/:studentId')
   @Authorized()
   async getOne(@Param('studentId') studentId: string) {
     try {
-      const user = await User.findOne({ where: { studentId } })
+      const user = await User.findOne({ where: { studentId }, include: [Project], attributes: { exclude: ['hash_pswd']} })
       return user !== null ? user.get() : new BadRequestError("User not found");
     }
     catch (e) {
@@ -41,7 +54,7 @@ export class UserController {
     }
   }
 
-  @Post('/users')
+  @Post('/')
   @UseBefore(CaptchaMiddleware)
   async post(@Body({ required: true }) user: CreateUserRequest) {
     try {

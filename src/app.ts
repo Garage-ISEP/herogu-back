@@ -11,7 +11,7 @@ import { Dialect } from 'sequelize/types';
 
 import * as jwt from "jsonwebtoken";
 
-import { User, Role, Project } from "./Models/DatabaseModels";
+import { User, Role, Project, Collaborator } from "./Models/DatabaseModels";
 
 const sequelize = new Sequelize({
   logging: false,
@@ -23,7 +23,7 @@ const sequelize = new Sequelize({
   define: {
     schema: process.env.DB_SCHEMA ?? "herogu"
   },
-  models: [User, Role, Project]
+  models: [User, Role, Project, Collaborator]
 });
 
 const app = express();
@@ -37,6 +37,7 @@ useExpressServer(app, {
     const token = action.request.headers["auth"]
     let jwtPayload: any;
     // Read jwt token from header
+    console.log(token)
     try {
       jwtPayload = await <any>jwt.verify(token, process.env.JWT_SECRET);
     }
@@ -76,7 +77,14 @@ useExpressServer(app, {
     let user: any;
     // Get user by studentId
     try {
-      user = await User.findOne({ where: { studentId: uid }, include: [Role], attributes: { exclude: ['hash_pswd'] } });
+      user = await User.findOne({
+        where: { studentId: uid },
+        include: [
+          { as: 'role', model: Role },
+          { as: 'projects', model: Project },
+          { as: 'collaboratorsProjetcs', model: Project}],
+        attributes: { exclude: ['hash_pswd'] }
+      });
       if (user.verified === true) {
         return user;
       }
@@ -85,6 +93,7 @@ useExpressServer(app, {
       }
     }
     catch (e) {
+      console.log(e);
       throw new InternalServerError("DB Failing");
     }
   },

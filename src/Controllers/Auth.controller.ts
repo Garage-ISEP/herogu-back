@@ -7,12 +7,12 @@ import * as jwt from "jsonwebtoken";
 
 import { Logger } from '../Utils/Logger.service';
 
-@JsonController()
+@JsonController("/auth")
 export class AuthController {
 
   private readonly _logger = new Logger(this);
 
-  @Post('/auth/login')
+  @Post('/login')
   async login(@Body({ required: true }) user: LoginRequest) {
     let dbUser: User;
     try {
@@ -41,7 +41,7 @@ export class AuthController {
     };
   }
 
-  @Post('/auth/verify')
+  @Post('/verify')
   async verify(@Body({ required: true }) token: string) {
     let users: User[];
     try {

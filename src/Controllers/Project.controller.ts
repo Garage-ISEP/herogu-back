@@ -5,12 +5,12 @@ import { CreateProjectRequest } from './RequestValidator'
 
 import { Logger } from '../Utils/Logger.service';
 
-@JsonController()
+@JsonController("/projects")
 export class ProjectController {
 
   private readonly _logger = new Logger(this);
 
-  @Get('/projects/all')
+  @Get('/')
   @Authorized()
   async getAll() {
     try {
@@ -23,11 +23,14 @@ export class ProjectController {
     }
   }
 
-  @Get('/projects/:id')
+  @Get('/:id')
   @Authorized()
   async getOne(@Param('id') id: string) {
     try {
-      const projects = await Project.findOne({ where: { id } })
+      const projects = await Project.findOne({ where: { id }, include: [
+        { as: 'user', model: User },
+        { as: 'collaborators', model: User }
+      ] })
       return projects !== null ? projects.get() : new HttpError(400, "Invalid Id");
     }
     catch (e) {
@@ -36,12 +39,7 @@ export class ProjectController {
     }
   }
 
-  @Get('/projects')
-  async getUserProjects(@CurrentUser({ required: true }) user: User) {
-    return "heelo";
-  }
-
-  @Post('/projects')
+  @Post('/')
   async post(@Body({ required: true }) project: CreateProjectRequest) {
     let c: number;
     try {

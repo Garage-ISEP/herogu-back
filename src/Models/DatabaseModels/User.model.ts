@@ -1,5 +1,5 @@
-import { Table, Column, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
-import { Role, Project } from '../DatabaseModels';
+import { Table, Column, BelongsToMany, Model, HasMany, DataType, Default, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique } from 'sequelize-typescript';
+import { Role, Project, Collaborator } from '../DatabaseModels';
 
 
 @Table
@@ -40,5 +40,8 @@ export class User extends Model<User> {
 
   @HasMany(() => Project)
   projects: Project;
+
+  @BelongsToMany(() => Project, () => Collaborator)
+  collaboratorsProjetcs: Project[];
 
 }
