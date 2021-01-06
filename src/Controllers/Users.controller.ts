@@ -1,4 +1,4 @@
-import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError, CurrentUser } from 'routing-controllers';
+import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError, CurrentUser, ForbiddenError } from 'routing-controllers';
 
 import { User, Project } from '../Models/DatabaseModels';
 import { CreateUserRequest } from './RequestValidator'
@@ -9,18 +9,7 @@ import * as bcrypt from 'bcrypt';
 import mailer from "../Services/Mailer.service";
 
 import { Logger } from '../Utils/Logger.service';
-
-@JsonController()
-export class ProfilController {
-
-  private readonly _logger = new Logger(this);
-
-  @Get('/me')
-  async getMe(@CurrentUser({ required: true }) user: User) {
-    console.log(user)
-    return user.toJSON();
-  }
-}
+import { time } from 'console';
 
 
 @JsonController("/users")
@@ -95,6 +84,20 @@ export class UserController {
       "status": "succes",
       "user": user
     };
+  }
+
+  @Post("/resend")
+  async resendMail(@CurrentUser({ required: true }) user: User) {
+    if (Date.now() - user.last_mail.getTime() < 10 * 60 * 1000) {
+      throw new ForbiddenError("Time between two mail validation must be at least 10 minutes");
+    }
+    const verifCode = await bcrypt.hash(user.studentId, 10);
+    try {
+      mailer.sendVerificationMail(user.mail, verifCode);
+    }
+    catch (e) {
+      this._logger.error(e, user);
+    }
   }
 
   /* @Patch('/users/:id')
