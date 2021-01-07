@@ -10,6 +10,7 @@ import { Logger } from "../Utils/Logger.service";
 import mailerService from "./Mailer.service";
 import * as shortUuid from "short-uuid";
 import * as fs from "fs";
+import { ProjectCreationError } from "../Utils/ProjectCreationError";
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _logger = new Logger(this);
@@ -212,28 +213,30 @@ class DockerService {
     mailerService.sendErrorMail(this, "Error starting new container : ", error);
   }
 
-  public async createMysqlDBWithUser(projectName: string, sqlContent: string): Promise<{dbName: string, username: string, password: string}> {
-    const username = shortUuid().generate() + "-" + projectName;
-    const dbName = shortUuid().generate() + "-" + projectName;
+  /**
+   * Create a mysql db with user
+   * An optional sql fileName can be provided to hydrate the db 
+   */
+  public async createMysqlDBWithUser(projectName: string, fileName?: string): Promise<{dbName: string, username: string, password: string}> {
+    const username = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 10);
+    const dbName = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 64);
     const password = shortUuid().generate();
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS ${username} IDENTIFIED BY ${password}`);
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${username}' IDENTIFIED BY '${password}'`);
       await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
       await this._mysqlQuery("FLUSH PRIVILEGES");
-      await this._mysqlQuery(`mysql -u ${username} -p ${dbName} < ${sqlContent}`);
+      await this._mysqlQuery("CREATE TABLE Bienvenu (Message varchar(255))", dbName);
+      if (fileName) {
+        await this._mysqlExec(`mysql --user=${username} --password=${password} ${dbName} < /tmp/mysql-bridge/${fileName}`);
+        await this._mysqlExec(`rm /tmp/mysql-bridge/${fileName}`);
+      }
+      await this._mysqlQuery(`INSERT INTO Bienvenu (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
       return { dbName, username, password };
     } catch (e) {
       this._logger.error(e);
-      throw new Error("Error while Creating DB With USER");
+      throw new ProjectCreationError("Error while Creating DB With USER");
     }
-  }
-
-  public async importMysqlDB(sqlFile: string) {
-    const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
-    this._docker.getContainer(mysqlId).exec({
-
-    });
   }
 
   public async stopContainerFromName(name: string) {
@@ -266,18 +269,25 @@ class DockerService {
     await this._checkStatusEvents(id).catch((e) => console.error(e));
   }
 
-  private async _mysqlQuery(str: string, sqlContent = false) {
+  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
+    await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
+  }
+
+  private async _mysqlExec(...str: string[]) {
     const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
     const container = this._docker.getContainer(mysqlId);
     return new Promise<void>(async (resolve, reject) => {
       (await (await container.exec({
-        Cmd: sqlContent ? [str] : ['mysql', "-uroot -e", `"${str}"`],
+        Cmd: str,
         AttachStdout: true,
         AttachStderr: true,
         Privileged: true,
-      })).start({})).on("data", chunk => {
-        this._logger.log(`Mysql command response [${str}] : ${chunk}`);
-      }).on("end", () => resolve()).on("error", (e) => reject(`Mysql Query rejected : ${str}, ${e}`));
+      })).start({})).on("data", (chunk: string) => {
+        if (chunk.toString().toLowerCase().includes("error"))
+          reject(`Execution error : ${str}, ${chunk}`);
+        else if (!chunk.toString().toLocaleLowerCase().includes("warning"))
+          this._logger.log(`Mysql command response [${str}] : ${chunk}`);
+      }).on("end", () => resolve()).on("error", (e) => reject(`Execution error : ${str}, ${e}`));
     });
   }
 }

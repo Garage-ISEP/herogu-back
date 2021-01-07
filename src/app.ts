@@ -4,11 +4,10 @@ import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import { LogsController } from './Controllers/Sockets/Logs.controller';
 import { useExpressServer } from 'routing-controllers';
 import { useSocketServer } from 'socket.io-ts-controllers';
-import * as cors from "cors";
 import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
-
+import dockerService from "./Services/Docker.service";
 import * as jwt from "jsonwebtoken";
 
 import { User, Role, Project, Collaborator } from "./Models/DatabaseModels";
@@ -110,4 +109,10 @@ useSocketServer(io, {
 server.listen(3000, async () => {
   await sequelize.sync({force:false});
   console.log("server running on", process.env.BASE_URL);
+  try {
+    const res = await dockerService.createMysqlDBWithUser("monproject");
+    console.log(res);
+  } catch (e) {
+    console.log(e);
+  }
 });
