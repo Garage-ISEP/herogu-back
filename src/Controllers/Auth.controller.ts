@@ -33,7 +33,7 @@ export class AuthController {
     const token = jwt.sign(
       { uid: dbUser.studentId, mail: dbUser.mail },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
     return {
       "status": "succes",

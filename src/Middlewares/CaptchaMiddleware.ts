@@ -11,6 +11,9 @@ export default class CaptchaMiddleware implements ExpressMiddlewareInterface {
    
     let capchaToken;
     try {
+      if (!req.body.captchaToken) {
+        throw new BadRequestError("Capcha Token is required");
+      }
       capchaToken = req.body.captchaToken;
     }
     catch (e) {

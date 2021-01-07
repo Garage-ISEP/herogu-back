@@ -85,12 +85,7 @@ useExpressServer(app, {
           { as: 'collaboratorsProjetcs', model: Project}],
         attributes: { exclude: ['hash_pswd'] }
       });
-      if (user.verified === true) {
-        return user;
-      }
-      else {
-        return;
-      }
+      return user;
     }
     catch (e) {
       console.log(e);
