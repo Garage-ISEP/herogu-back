@@ -8,7 +8,8 @@ import * as Dockerode from "dockerode";
 import { Container, ContainerInspectInfo } from "dockerode";
 import { Logger } from "../Utils/Logger.service";
 import mailerService from "./Mailer.service";
-
+import * as shortUuid from "short-uuid";
+import * as fs from "fs";
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _logger = new Logger(this);
@@ -211,6 +212,30 @@ class DockerService {
     mailerService.sendErrorMail(this, "Error starting new container : ", error);
   }
 
+  public async createMysqlDBWithUser(projectName: string, sqlContent: string): Promise<{dbName: string, username: string, password: string}> {
+    const username = shortUuid().generate() + "-" + projectName;
+    const dbName = shortUuid().generate() + "-" + projectName;
+    const password = shortUuid().generate();
+    try {
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS ${username} IDENTIFIED BY ${password}`);
+      await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
+      await this._mysqlQuery("FLUSH PRIVILEGES");
+      await this._mysqlQuery(`mysql -u ${username} -p ${dbName} < ${sqlContent}`);
+      return { dbName, username, password };
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error("Error while Creating DB With USER");
+    }
+  }
+
+  public async importMysqlDB(sqlFile: string) {
+    const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
+    this._docker.getContainer(mysqlId).exec({
+
+    });
+  }
+
   public async stopContainerFromName(name: string) {
     const id = await this._getContainerIdFromName(name);
     await this._docker.getContainer(id).stop();
@@ -239,6 +264,21 @@ class DockerService {
     }
     this._statusListeners[id] = handler;
     await this._checkStatusEvents(id).catch((e) => console.error(e));
+  }
+
+  private async _mysqlQuery(str: string, sqlContent = false) {
+    const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
+    const container = this._docker.getContainer(mysqlId);
+    return new Promise<void>(async (resolve, reject) => {
+      (await (await container.exec({
+        Cmd: sqlContent ? [str] : ['mysql', "-uroot -e", `"${str}"`],
+        AttachStdout: true,
+        AttachStderr: true,
+        Privileged: true,
+      })).start({})).on("data", chunk => {
+        this._logger.log(`Mysql command response [${str}] : ${chunk}`);
+      }).on("end", () => resolve()).on("error", (e) => reject(`Mysql Query rejected : ${str}, ${e}`));
+    });
   }
 }
 
