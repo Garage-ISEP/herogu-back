@@ -26,7 +26,7 @@ export class ProjectController {
 
   @Get('/manifest/:name')
   async verifyDockerImage(@Param('name') name: string) {
-    const image = decodeURI(name);
+    const image = decodeURIComponent(name);
     try {
       const token = (await axios.get(`https://auth.docker.io/token?service=registry.docker.io&scope=repository:${image}:pull`, {
         headers: { 'Access-Control-Allow-Origin': '*', 'Origin': 'hub.docker.com' }
