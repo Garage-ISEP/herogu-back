@@ -11,7 +11,7 @@ services:
       - "web"
     restart: always
     volumes:
-      ./conf/app
+      ./conf:/app
     labels:
       # Traefik configuration
       traefik.enable: 'true'
