@@ -107,3 +107,5 @@ dist
 .tern-port
 
 package-lock.json
+
+gmail.conf.js
