@@ -9,12 +9,14 @@ import { Container, ContainerInspectInfo } from "dockerode";
 import { Logger } from "../Utils/Logger.service";
 import mailerService from "./Mailer.service";
 import * as shortUuid from "short-uuid";
-import * as fs from "fs";
 import { ProjectCreationError } from "../Utils/ProjectCreationError";
+import { Parser } from "node-sql-parser";
+
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _logger = new Logger(this);
   private _statusListeners: { [id: string]: (status: ContainerStatus, exitCode?: number) => void } = {};
+  private readonly mysqlBridgePath = "/tmp/mysql-bridge/";
 
   public async init() {
     try {
@@ -217,7 +219,7 @@ class DockerService {
    * Create a mysql db with user
    * An optional sql fileName can be provided to hydrate the db 
    */
-  public async createMysqlDBWithUser(projectName: string, fileName?: string): Promise<{dbName: string, username: string, password: string}> {
+  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<{dbName: string, username: string, password: string}> {
     const username = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 10);
     const dbName = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 64);
     const password = shortUuid().generate();
@@ -227,15 +229,31 @@ class DockerService {
       await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
       await this._mysqlQuery("FLUSH PRIVILEGES");
       await this._mysqlQuery("CREATE TABLE Bienvenu (Message varchar(255))", dbName);
-      if (fileName) {
-        await this._mysqlExec(`mysql --user=${username} --password=${password} ${dbName} < /tmp/mysql-bridge/${fileName}`);
-        await this._mysqlExec(`rm /tmp/mysql-bridge/${fileName}`);
-      }
+      sql && await this.execSQLFile(sql, dbName, username, password);
       await this._mysqlQuery(`INSERT INTO Bienvenu (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
       return { dbName, username, password };
     } catch (e) {
       this._logger.error(e);
       throw new ProjectCreationError("Error while Creating DB With USER");
+    }
+  }
+
+  /**
+   * Execute sql commands, for instance from a .sql file
+   */
+  public async execSQLFile(sql: string, dbName: string, username: string, password: string) {
+    try {
+      if (sql) new Parser().parse(sql);      
+    } catch (e) {
+      const err = new ProjectCreationError("Error when parsing SQL File");
+      err.code = 1;
+      throw err;
+    }
+    try {
+      await this._mysqlQuery(sql, dbName, username, password);
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectCreationError("Error while adding sql to db");
     }
   }
 
@@ -277,17 +295,28 @@ class DockerService {
     const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
     const container = this._docker.getContainer(mysqlId);
     return new Promise<void>(async (resolve, reject) => {
-      (await (await container.exec({
+      const stream = (await (await container.exec({
         Cmd: str,
         AttachStdout: true,
         AttachStderr: true,
         Privileged: true,
-      })).start({})).on("data", (chunk: string) => {
+        Tty: true
+      })).start({
+        stdin: true,
+        hijack: true
+      }));
+      stream.on("data",
+        (chunk: string) => {
+          if (!stream.readable) return;
         if (chunk.toString().toLowerCase().includes("error"))
-          reject(`Execution error : ${str}, ${chunk}`);
+          reject(`Execution error : ${str.join(" ")}, ${chunk}`);
         else if (!chunk.toString().toLocaleLowerCase().includes("warning"))
-          this._logger.log(`Mysql command response [${str}] : ${chunk}`);
-      }).on("end", () => resolve()).on("error", (e) => reject(`Execution error : ${str}, ${e}`));
+          this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk}`);
+      }).on("end",
+        () => resolve()
+      ).on("error",
+        (e) => reject(`Execution error : ${str.join(" ")}, ${e}`)
+      );
     });
   }
 }

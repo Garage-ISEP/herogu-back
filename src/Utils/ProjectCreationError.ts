@@ -1,2 +1,4 @@
-export class ProjectCreationError extends Error { }
+export class ProjectCreationError extends Error { 
+  code: number = 0;
+}
 

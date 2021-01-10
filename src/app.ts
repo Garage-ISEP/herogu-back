@@ -109,10 +109,4 @@ useSocketServer(io, {
 server.listen(3000, async () => {
   await sequelize.sync({force:false});
   console.log("server running on", process.env.BASE_URL);
-  try {
-    const res = await dockerService.createMysqlDBWithUser("monproject");
-    console.log(res);
-  } catch (e) {
-    console.log(e);
-  }
 });
