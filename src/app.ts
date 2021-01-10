@@ -4,6 +4,7 @@ import { JWTSocketMiddleware } from './Middlewares/SocketJWTMiddleware';
 import { LogsController } from './Controllers/Sockets/Logs.controller';
 import { useExpressServer } from 'routing-controllers';
 import { useSocketServer } from 'socket.io-ts-controllers';
+import * as bodyParser from "body-parser";
 import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
@@ -27,13 +28,16 @@ const sequelize = new Sequelize({
 
 const app = express();
 
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended: true}));
+
 useExpressServer(app, {
   cors: {
     origin: '*',
   },
   controllers: [__dirname + '/Controllers/*.js'],
   authorizationChecker: async (action: Action) => {
-    const token = action.request.headers["auth"]
+    const token = action.request.headers["auth"];
     let jwtPayload: any;
     // Read jwt token from header
     console.log(token)
@@ -84,12 +88,7 @@ useExpressServer(app, {
           { as: 'collaboratorsProjetcs', model: Project}],
         attributes: { exclude: ['hash_pswd'] }
       });
-      if (user.verified === true) {
-        return user;
-      }
-      else {
-        return;
-      }
+      return user;
     }
     catch (e) {
       console.log(e);
@@ -97,7 +96,6 @@ useExpressServer(app, {
     }
   },
 });
-
 const server = require("http").Server(app);
 const io = require("socket.io")(server);
 

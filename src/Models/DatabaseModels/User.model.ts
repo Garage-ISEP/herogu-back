@@ -26,6 +26,9 @@ export class User extends Model<User> {
   @Column({ type: DataType.STRING(255) })
   hash_pswd: string;
 
+  @Column({ type: DataType.DATE })
+  last_mail: Date;
+    
   @Default(false)
   @Column({ type: DataType.BOOLEAN })
   verified: boolean;
