@@ -4,6 +4,7 @@ import { CreateProjectRequest } from './RequestValidator'
 
 
 import { Logger } from '../Utils/Logger.service';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 @JsonController("/projects")
 export class ProjectController {
@@ -20,6 +21,24 @@ export class ProjectController {
     catch (e) {
       this._logger.error(e);
       throw new InternalServerError("DB Failing");
+    }
+  }
+
+  @Get('/manifest/:name')
+  async verifyDockerImage(@Param('name') name: string) {
+    const image = decodeURIComponent(name);
+    try {
+      const token = (await axios.get(`https://auth.docker.io/token?service=registry.docker.io&scope=repository:${image}:pull`, {
+        headers: { 'Access-Control-Allow-Origin': '*', 'Origin': 'hub.docker.com' }
+      })).data?.token;
+      await axios.get(`https://registry.hub.docker.com/v2/${image}/manifests/latest`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      return HttpCode(200);
+    } catch (e) {
+      const error: AxiosError = e;
+      this._logger.error(error.response);
+      throw new BadRequestError();
     }
   }
 
