@@ -1,13 +1,16 @@
 import { Logger } from '../Utils/Logger.service';
 import { createTransport } from "nodemailer";
-
+import * as gmailConf from "../../gmail.conf";
 class Mailer {
 
   private readonly _transporter = createTransport({
-    host: process.env.MAIL_HOST,
-		auth: {
-			pass: process.env.MAIL_MDP,
-      user: process.env.MAIL_ADDR,
+    host: "smtp.gmail.com",
+    port: gmailConf.default.port,
+    auth: {
+      type: 'OAuth2',
+      user: gmailConf.default.mail,
+      serviceClient: gmailConf.default.client_id,
+      privateKey: gmailConf.default.private_key
     },
   });
 
@@ -47,7 +50,7 @@ class Mailer {
       subject: "Vérification mail Herogu",
       html: `
         Pour vérifier votre mail, cliquez sur ce lien : <br>
-        <a href='${process.env.BASE_URL}/verify?token=${code}'>lien</a>
+        <a href='https://herogu.garageisep.com/verify?token=${code}' target='_blank'>Verifier mon adresse mail</a>
       `
     }).catch(e => { throw new Error("Error sending verification mail") });
   }

@@ -8,7 +8,10 @@ import * as bodyParser from "body-parser";
 import * as express from "express";
 import { Sequelize } from 'sequelize-typescript';
 import { Dialect } from 'sequelize/types';
-
+import mailerService from "./Services/Mailer.service";
+import dockerService from "./Services/Docker.service";
+import { Server } from "http";
+import { Server as SocketServer } from "socket.io";
 import * as jwt from "jsonwebtoken";
 
 import { User, Role, Project, Collaborator } from "./Models/DatabaseModels";
@@ -96,15 +99,17 @@ useExpressServer(app, {
     }
   },
 });
-const server = require("http").Server(app);
-const io = require("socket.io")(server);
+const server = new Server(app);
+const io = new SocketServer(server);
 
 useSocketServer(io, {
   controllers: [LogsController],
   middlewares: [JWTSocketMiddleware]
 });
 
-server.listen(3000, async () => {
+server.listen(4000, async () => {
+  await mailerService.init();
+  await dockerService.init();
   await sequelize.sync({force:false});
-  console.log("server running on", process.env.BASE_URL);
+  console.log("Server running on", process.env.BASE_URL);
 });
