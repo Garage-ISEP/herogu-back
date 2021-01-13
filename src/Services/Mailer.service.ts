@@ -1,7 +1,7 @@
 import { Logger } from '../Utils/Logger.service';
 import { createTransport } from "nodemailer";
 //@ts-ignore
-import * as gmailConf from "../../gmail.conf";
+import * as gmailConf from "../../mail/gmail.conf";
 class Mailer {
 
   private readonly _transporter = createTransport({
