@@ -1,13 +1,16 @@
 import { Logger } from '../Utils/Logger.service';
 import { createTransport } from "nodemailer";
-
+import * as gmailConf from "../../gmail.conf";
 class Mailer {
 
   private readonly _transporter = createTransport({
-    host: process.env.MAIL_HOST,
-		auth: {
-			pass: process.env.MAIL_MDP,
-      user: process.env.MAIL_ADDR,
+    host: "smtp.gmail.com",
+    port: gmailConf.default.port,
+    auth: {
+      type: 'OAuth2',
+      user: gmailConf.default.mail,
+      serviceClient: gmailConf.default.client_id,
+      privateKey: gmailConf.default.private_key
     },
   });
 
@@ -27,8 +30,8 @@ class Mailer {
     const callerName = Object.getPrototypeOf(caller).constructor.name;
     try {
       await this._transporter.sendMail({
-        from: process.env.MAIL_ADDR,
-        to: process.env.MAIL_DEST,
+        from: gmailConf.default.mail,
+        to: process.env.MAIL_ADMIN,
         subject: `Erreur Herogu : ${callerName}`,
         html: `
           <h1 style='text-align: center'>Logs : </h1>
@@ -48,7 +51,7 @@ class Mailer {
     try {
       await this._transporter.sendMail({
         to: email,
-        from: process.env.MAIL_ADDR,
+        from: gmailConf.default.mail,
         subject: "Vérification mail Herogu",
         html: `
           Pour vérifier votre mail, cliquez sur ce lien : <br>

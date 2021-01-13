@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "allowJs": true,
+        "allowJs": false,
         "pretty": false,
         "sourceMap": false,
         "target": "es2019",
@@ -16,6 +16,6 @@
             "./node_modules/@types"
         ],
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "gmail.conf.js"],
     "exclude": ["node_modules", "custome_typings", "package.json", "package-lock.json"]
 }

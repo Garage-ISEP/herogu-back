@@ -1,6 +1,6 @@
 FROM php:8-apache
 
-RUN apt-get update -y
+RUN apt-get update -y && apt-get install -y libonig-dev
 
 RUN docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring mysqli exif && docker-php-ext-enable mysqli
 
