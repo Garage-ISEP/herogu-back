@@ -107,7 +107,7 @@ useSocketServer(io, {
   middlewares: [JWTSocketMiddleware]
 });
 
-server.listen(4000, async () => {
+server.listen(3000, async () => {
   await mailerService.init();
   await dockerService.init();
   await sequelize.sync({force:false});
