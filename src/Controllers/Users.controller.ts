@@ -88,7 +88,7 @@ export class UserController {
 
   @Post("/resend")
   async resendMail(@CurrentUser({ required: true }) user: User) {
-    if (Date.now() - user.last_mail.getTime() < 10 * 60 * 1000) {
+    if (user.last_mail && Date.now() - user.last_mail.getTime() < 10 * 60 * 1000) {
       throw new ForbiddenError("Time between two mail validation must be at least 10 minutes");
     }
     const verifCode = await bcrypt.hash(user.studentId, 10);
