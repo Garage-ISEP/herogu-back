@@ -94,6 +94,8 @@ export class UserController {
     const verifCode = await bcrypt.hash(user.studentId, 10);
     try {
       mailer.sendVerificationMail(user.mail, verifCode);
+      user.set("last_mail", new Date());
+      return HttpCode(200);
     }
     catch (e) {
       this._logger.error(e, user);
