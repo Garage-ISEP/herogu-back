@@ -11,12 +11,12 @@ import mailerService from "./Mailer.service";
 import * as shortUuid from "short-uuid";
 import { ProjectCreationError } from "../Utils/ProjectCreationError";
 import { Parser } from "node-sql-parser";
+import HostConfig from "./Conf/HostConfig";
 
 class DockerService {
   private _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _logger = new Logger(this);
   private _statusListeners: { [id: string]: (status: ContainerStatus, exitCode?: number) => void } = {};
-  private readonly mysqlBridgePath = "/tmp/mysql-bridge/";
 
   public async init() {
     try {
@@ -29,6 +29,185 @@ class DockerService {
     }
   }
 
+  public async removeContainerFromName(name: string) {
+    const containerId = await this._getContainerIdFromName(name);
+    if (containerId)
+      await this._removeContainer(containerId);
+  }
+
+  /**
+   * Listen container logs,
+   * Also print all the previous logs
+   * The listener is called line by line for the logs
+   * Throw an error if the container name doesn't exist
+   */
+  public async listenContainerLogs(name: string, listener?: (data: string) => void) {
+    try {
+      const id = await this._getContainerIdFromName(name);
+      const options: ContainerLogsConfig = {
+        logs: true,
+        stream: true,
+        stdout: true,
+        stderr: true,
+      };
+      const stream = await this._docker.getContainer(id).attach(options);
+      stream.on("data", (data: Buffer | string) =>
+        data.toString().split('\n').forEach(line => listener(line))
+      );
+    } catch (e) {
+      throw new Error("Cannot find container with name " + name);
+    }
+  }
+
+  /**
+   * Create a container from the given config
+   * If the image doesn't exist, it'll be pulled from the given url
+   * If a container with the same name already exist the former container is stopped and removed
+   * In case of failure, it retries 3 times
+   */
+  public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
+    const labels = this._getLabels(config.name, config.url, config.email);
+    try {
+      (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url));
+    } catch (e) {
+      this._logger.info("Impossible to get image from url :", config.url);
+      this._logger.info("Image doesn't exists, impossible to continue, incident will be reported");
+      mailerService.sendErrorMail(this, "Error pulling image : ", e);
+    }
+    try {
+      await this.removeContainerFromName(config.name);
+    } catch (e) {
+      this._logger.info("Error removing container " + config.name);
+      this._logger.info("Cannot continue container creation, incident will be reported");
+      mailerService.sendErrorMail(this, "Error removing container : ", e);
+      return;
+    }
+
+    let error: string;
+    for (let i = 0; i < 3; i++) {
+      try {
+        this._logger.log("Trying to create container :", config.name, "- iteration :", i);
+        const container = await this._docker.createContainer({
+          Image: config.url,
+          name: config.name,
+          Tty: true,
+          Labels: labels as any,
+          ExposedPorts: {
+            '80': {}
+          },
+          Env: Object.keys(config.env).map(
+            (key) => key + "=" + config.env[key]
+          ),
+          NetworkingConfig: {
+            EndpointsConfig: {
+              web: { Aliases: ["web"] },
+            },
+          },
+          HostConfig
+        });
+        await container.start({});
+        this._logger.info("Container", config.name, "created and started");
+        return container;
+      } catch (e) {
+        error = e;
+        this._logger.error(e);
+        this._logger.log("Impossible to create or start the container, trying one more time");
+      }
+    }
+    this._logger.log("Container not created or started after 3 times, incident will be reported.");
+    mailerService.sendErrorMail(this, "Error starting new container : ", error);
+  }
+
+  /**
+   * Create a mysql db with user
+   * An optional sql fileName can be provided to hydrate the db 
+   */
+  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<{dbName: string, username: string, password: string}> {
+    const username = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 10);
+    const dbName = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 64);
+    const password = shortUuid().generate();
+    try {
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${username}' IDENTIFIED BY '${password}'`);
+      await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
+      await this._mysqlQuery("FLUSH PRIVILEGES");
+      await this._mysqlQuery("CREATE TABLE Bienvenu (Message varchar(255))", dbName);
+      sql && await this.execSQLFile(sql, dbName, username, password);
+      await this._mysqlQuery(`INSERT INTO Bienvenu (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
+      return { dbName, username, password };
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectCreationError("Error while Creating DB With USER");
+    }
+  }
+
+  /**
+   * Execute sql commands, for instance from a .sql file
+   */
+  public async execSQLFile(sql: string, dbName: string, username: string, password: string) {
+    try {
+      if (sql) new Parser().parse(sql);      
+    } catch (e) {
+      const err = new ProjectCreationError("Error when parsing SQL File");
+      err.code = 1;
+      throw err;
+    }
+    try {
+      await this._mysqlQuery(sql, dbName, username, password);
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectCreationError("Error while adding sql to db");
+    }
+  }
+
+  /**
+   * Stop the container from its tag name
+   * throw docker error if can't stop or get container from name
+   */
+  public async stopContainerFromName(name: string) {
+    const id = await this._getContainerIdFromName(name);
+    await this._docker.getContainer(id).stop();
+  }
+
+  /**
+   * Start the cotnainer from its tag name
+   * throw a docker error if can't start or get container from name
+   */
+  public async startContainerFromName(name: string) {
+    const id = await this._getContainerIdFromName(name);
+    await this._docker.getContainer(id).start();
+  }
+
+  /**
+   * Get container info
+   * Throw an error if the container doesn't exist
+   */
+  public async getContainerInfoFromName(name: string): Promise<ContainerInspectInfo | null> {
+    const id = await this._getContainerIdFromName(name);
+    return await this._docker.getContainer(id).inspect();
+  }
+
+  /**
+   * Listen container Status changes
+   * The handler will be called with the actual status at the end of this method
+   * Throw an error if there is no container with this name
+   */
+  public async listenContainerStatus(name: string, handler: (status: ContainerStatus, exitCode: number) => void): Promise<void> {
+    let id: string;
+    try {
+      id = await this._getContainerIdFromName(name);
+    } catch (e) {
+      throw new Error("Cannot find container with name " + name);
+    }
+    this._statusListeners[id] = handler;
+    await this._checkStatusEvents(id).catch((e) => console.error(e));
+  }
+
+  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
+    await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
+  }
+
+  
   /**
    * Listen all docker container event,
    * If a container listener is added then the handler for this listener is triggerred
@@ -127,170 +306,9 @@ class DockerService {
     await container.remove({ force: true });
   }
 
-  public async removeContainerFromName(name: string) {
-    const containerId = await this._getContainerIdFromName(name);
-    if (containerId)
-      await this._removeContainer(containerId);
-  }
-
   /**
-   * Listen container logs,
-   * Also print all the previous logs
-   * The listener is called line by line for the logs
-   * Throw an error if the container name doesn't exist
+   * Execute bash commands in the mysql container
    */
-  public async listenContainerLogs(name: string, listener?: (data: string) => void) {
-    try {
-      const id = await this._getContainerIdFromName(name);
-      const options: ContainerLogsConfig = {
-        logs: true,
-        stream: true,
-        stdout: true,
-        stderr: true,
-      };
-      const stream = await this._docker.getContainer(id).attach(options);
-      stream.on("data", (data: Buffer | string) =>
-        data.toString().split('\n').forEach(line => listener(line))
-      );
-    } catch (e) {
-      throw new Error("Cannot find container with name " + name);
-    }
-  }
-
-  /**
-   * Create a container from the given config
-   * If the image doesn't exist, it'll be pulled from the given url
-   * If a container with the same name already exist the former container is stopped and removed
-   * In case of failure, it retries 3 times
-   */
-  public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    const labels = this._getLabels(config.name, config.url, config.email);
-    try {
-      (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url));
-    } catch (e) {
-      this._logger.info("Impossible to get image from url :", config.url);
-      this._logger.info("Image doesn't exists, impossible to continue, incident will be reported");
-      mailerService.sendErrorMail(this, "Error pulling image : ", e);
-    }
-    try {
-      await this.removeContainerFromName(config.name);
-    } catch (e) {
-      this._logger.info("Error removing container " + config.name);
-      this._logger.info("Cannot continue container creation, incident will be reported");
-      mailerService.sendErrorMail(this, "Error removing container : ", e);
-      return;
-    }
-
-    let error: string;
-    for (let i = 0; i < 3; i++) {
-      try {
-        this._logger.log("Trying to create container :", config.name, "- iteration :", i);
-        const container = await this._docker.createContainer({
-          Image: config.url,
-          name: config.name,
-          Tty: true,
-          Labels: labels as any,
-          ExposedPorts: {
-            '80': {}
-          },
-          Env: Object.keys(config.env).map(
-            (key) => key + "=" + config.env[key]
-          ),
-          NetworkingConfig: {
-            EndpointsConfig: {
-              web: { Aliases: ["web"] },
-            },
-          },
-        });
-        await container.start({});
-        this._logger.info("Container", config.name, "created and started");
-        return container;
-      } catch (e) {
-        error = e;
-        this._logger.error(e);
-        this._logger.log("Impossible to create or start the container, trying one more time");
-      }
-    }
-    this._logger.log("Container not created or started after 3 times, incident will be reported.");
-    mailerService.sendErrorMail(this, "Error starting new container : ", error);
-  }
-
-  /**
-   * Create a mysql db with user
-   * An optional sql fileName can be provided to hydrate the db 
-   */
-  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<{dbName: string, username: string, password: string}> {
-    const username = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 10);
-    const dbName = shortUuid().generate().substr(0, 6) + "_" + projectName.substr(0, 64);
-    const password = shortUuid().generate();
-    try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${username}' IDENTIFIED BY '${password}'`);
-      await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
-      await this._mysqlQuery("FLUSH PRIVILEGES");
-      await this._mysqlQuery("CREATE TABLE Bienvenu (Message varchar(255))", dbName);
-      sql && await this.execSQLFile(sql, dbName, username, password);
-      await this._mysqlQuery(`INSERT INTO Bienvenu (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
-      return { dbName, username, password };
-    } catch (e) {
-      this._logger.error(e);
-      throw new ProjectCreationError("Error while Creating DB With USER");
-    }
-  }
-
-  /**
-   * Execute sql commands, for instance from a .sql file
-   */
-  public async execSQLFile(sql: string, dbName: string, username: string, password: string) {
-    try {
-      if (sql) new Parser().parse(sql);      
-    } catch (e) {
-      const err = new ProjectCreationError("Error when parsing SQL File");
-      err.code = 1;
-      throw err;
-    }
-    try {
-      await this._mysqlQuery(sql, dbName, username, password);
-    } catch (e) {
-      this._logger.error(e);
-      throw new ProjectCreationError("Error while adding sql to db");
-    }
-  }
-
-  public async stopContainerFromName(name: string) {
-    const id = await this._getContainerIdFromName(name);
-    await this._docker.getContainer(id).stop();
-  }
-
-  /**
-   * Get container info
-   * Throw an error if the container doesn't exist
-   */
-  public async getContainerInfoFromName(name: string): Promise<ContainerInspectInfo | null> {
-    const id = await this._getContainerIdFromName(name);
-    return await this._docker.getContainer(id).inspect();
-  }
-
-  /**
-   * Listen container Status changes
-   * The handler will be called with the actual status at the end of this method
-   * Throw an error if there is no container with this name
-   */
-  public async listenContainerStatus(name: string, handler: (status: ContainerStatus, exitCode: number) => void): Promise<void> {
-    let id: string;
-    try {
-      id = await this._getContainerIdFromName(name);
-    } catch (e) {
-      throw new Error("Cannot find container with name " + name);
-    }
-    this._statusListeners[id] = handler;
-    await this._checkStatusEvents(id).catch((e) => console.error(e));
-  }
-
-  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
-    await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
-  }
-
   private async _mysqlExec(...str: string[]) {
     const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
     const container = this._docker.getContainer(mysqlId);
