@@ -95,6 +95,7 @@ export class UserController {
     try {
       mailer.sendVerificationMail(user.mail, verifCode);
       user.set("last_mail", new Date());
+      await user.save();
       return HttpCode(200);
     }
     catch (e) {
