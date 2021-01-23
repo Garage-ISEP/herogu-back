@@ -1,4 +1,4 @@
-import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, Authorized, CurrentUser, InternalServerError, BadRequestError } from 'routing-controllers';
+import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, Authorized, CurrentUser, InternalServerError, BadRequestError, QueryParam, QueryParams } from 'routing-controllers';
 import { User, Project } from '../Models/DatabaseModels';
 import { CreateProjectRequest } from './RequestValidator'
 
@@ -39,6 +39,17 @@ export class ProjectController {
       const error: AxiosError = e;
       this._logger.error(error.response);
       throw new BadRequestError();
+    }
+  }
+
+  
+  @Get("/exists/:name")
+  async projectExists(@Param("name") name: string) {
+    this._logger.log(name);
+    if (await Project.findOne({ where: { name } }) != null) {
+      throw new BadRequestError("this project name already exists");
+    } else {
+      return HttpCode(200);
     }
   }
 
