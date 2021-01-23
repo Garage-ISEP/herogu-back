@@ -21,3 +21,17 @@ export class CreateUserRequest {
   }
 
 }
+
+export class PatchPasswordRequest {
+
+  @MinLength(8)
+  @IsNotEmpty()
+  @ValidateIf(password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password))
+  old_password: string;
+
+  @MinLength(8)
+  @IsNotEmpty()
+  @ValidateIf(password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password))
+  new_password: string;
+
+}

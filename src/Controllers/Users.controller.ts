@@ -1,3 +1,4 @@
+import { PatchPasswordRequest } from './RequestValidator/UserValidator';
 import { Param, Body, Get, Post, Patch, Delete, Redirect, HttpCode, OnNull, JsonController, HttpError, UseBefore, UseAfter, Authorized, BadRequestError, InternalServerError, CurrentUser, ForbiddenError } from 'routing-controllers';
 
 import { User, Project } from '../Models/DatabaseModels';
@@ -101,6 +102,20 @@ export class UserController {
     catch (e) {
       this._logger.error(e, user);
     }
+  }
+
+  @Patch("/password")
+  async updatePwd(@CurrentUser({ required: true }) user: User, @Body({ required: true }) pwd: PatchPasswordRequest) {
+    let hash: string = (await User.findOne({ where: { id: user.id }, attributes: ["hash_pswd"] })).hash_pswd;
+    this._logger.log(hash, pwd);
+    if (pwd.new_password === pwd.old_password) {
+      throw new BadRequestError("Passwords are equals");
+    } else if (!bcrypt.compareSync(pwd.old_password, hash)) {
+      throw new ForbiddenError("Bad password");
+    }
+    hash = bcrypt.hashSync(pwd.new_password, 10);
+    await user.set("hash_pswd", hash).save();
+    return HttpCode(200);
   }
 
   /* @Patch('/users/:id')
