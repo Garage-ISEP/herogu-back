@@ -45,6 +45,6 @@ export class User extends Model<User> {
   projects: Project;
 
   @BelongsToMany(() => Project, () => Collaborator)
-  collaboratorsProjetcs: Project[];
+  collaboratorsProjects: Project[];
 
 }

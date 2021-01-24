@@ -5,6 +5,7 @@ import { CreateProjectRequest } from './RequestValidator'
 
 import { Logger } from '../Utils/Logger.service';
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
+import dockerService from "../Services/Docker.service";
 
 @JsonController("/projects")
 export class ProjectController {
@@ -43,13 +44,29 @@ export class ProjectController {
   }
 
   
-  @Get("/exists/:name")
+  @Get("/:name/exists")
   async projectExists(@Param("name") name: string) {
-    this._logger.log(name);
     if (await Project.findOne({ where: { name } }) != null) {
       throw new BadRequestError("this project name already exists");
     } else {
       return HttpCode(200);
+    }
+  }
+
+  //TODO: Faire la vérification que le projet appartient bien à l'utilisateur
+  @Get("/:name/toggle")
+  async toggleProject(@CurrentUser() user: User, @Param("name") name: string) {
+    let running: boolean;
+    try {
+      running = (await dockerService.getContainerInfoFromName(name)).State.Running;
+    } catch (e) {
+      throw new BadRequestError("Container name does not exist");
+    }
+    try {
+      running ? await dockerService.stopContainerFromName(name) : await dockerService.startContainerFromName(name);
+      return HttpCode(200);
+    } catch (e) {
+      this._logger.error(e, name);
     }
   }
 
