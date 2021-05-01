@@ -2,6 +2,8 @@ import { AppLogger } from './utils/app-logger.util';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MailerService } from './services/mailer.service';
+import { DockerService } from './services/docker.service';
 
 @Module({
   imports: [
@@ -19,6 +21,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     })
   ],
   controllers: [],
-  providers: [],
+  providers: [MailerService, DockerService],
 })
 export class AppModule {}

@@ -35,7 +35,7 @@ export class User extends BaseEntity {
   public role: Role;
 
   @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: true })
-  public collaborator: Collaborator[];
+  public collaborators: Collaborator[];
 
   @OneToMany(() => Project, project => project.creator, { cascade: true })
   public createdProjects: Project[];
