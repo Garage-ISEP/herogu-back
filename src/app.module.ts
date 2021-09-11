@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerService } from './services/mailer.service';
 import { DockerService } from './services/docker.service';
 import { AuthController } from './controllers/auth/auth.controller';
+import { GoogleRecaptchaModule, GoogleRecaptchaNetwork } from '@nestlab/google-recaptcha';
 
 @Module({
   imports: [
@@ -19,7 +20,13 @@ import { AuthController } from './controllers/auth/auth.controller';
       schema: process.env.DB_SCHEMA,
       entities: ["**/*.entity.js"],
       synchronize: process.env.NODE_ENV === "dev",
-    })
+    }),
+    GoogleRecaptchaModule.forRoot({
+      secretKey: process.env.RECAPTCHA_SECRET,
+      response: req => req.headers.recaptcha,
+      skipIf: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'prod',
+      network: GoogleRecaptchaNetwork.Recaptcha
+    }),
   ],
   controllers: [AuthController],
   providers: [MailerService, DockerService],

@@ -7,6 +7,7 @@ import * as jwt from "jsonwebtoken";
 import { CurrentUser } from 'src/decorators/current-user.decorator';
 import { ToManyResendMailException } from 'src/errors/auth.exception';
 import { MailerService } from 'src/services/mailer.service';
+import { Recaptcha } from '@nestlab/google-recaptcha';
 @Controller('auth')
 export class AuthController {
 
@@ -21,6 +22,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Recaptcha()
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
     const user = await User.findOne({ where: { studentId: creds.studentId } });
     if (!user)
@@ -32,6 +34,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Recaptcha()
   public async register(@Body() userReq: RegisterDto): Promise<void> {
     let user = await User.findOne({ where: { studentId: userReq.studentId } });
     if (user)
@@ -47,6 +50,7 @@ export class AuthController {
 
   @Post('resend-mail')
   @UseGuards(AuthGuard)
+  @Recaptcha()
   public async resendMail(@CurrentUser() user: User): Promise<void> {
     if (user.verified)
       throw new ForbiddenException("Mail already verified");
@@ -57,6 +61,7 @@ export class AuthController {
   }
 
   @Post('verify-mail')
+  @Recaptcha()
   public async verifyMail(@Body("token") token: string) {
     const user = await User.findOne({ where: { id: jwt.decode(token) } });
     try {
@@ -69,6 +74,7 @@ export class AuthController {
 
   @Patch('password')
   @UseGuards(AuthGuard)
+  @Recaptcha()
   public async updatePassword(@CurrentUser() user: User, @Body() body: UpdatePasswordDto): Promise<void> {
     if (!await bcrypt.compare(body.password, body.newPassword))
       throw new ForbiddenException("Invalid password");
