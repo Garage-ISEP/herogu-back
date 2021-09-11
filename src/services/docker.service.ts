@@ -137,7 +137,7 @@ export class DockerService implements OnModuleInit {
       await this._mysqlQuery("FLUSH PRIVILEGES");
       await this._mysqlQuery("CREATE TABLE Bienvenue (Message varchar(255))", creds.dbName);
       if (sql) await this.execSQLFile(sql, creds.dbName, creds.username, creds.password);
-      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
+      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, creds.dbName, creds.username, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
@@ -205,6 +205,11 @@ export class DockerService implements OnModuleInit {
     await this._checkStatusEvents(id).catch((e) => console.error(e));
   }
 
+  /**
+   * Execute a SQL query
+   * By default it will execute a query with root creds
+   * If specified it will execute a query with the given credentials and database name
+   */
   private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
   }
