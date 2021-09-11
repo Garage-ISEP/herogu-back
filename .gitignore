@@ -108,4 +108,5 @@ dist
 
 package-lock.json
 
-gmail.conf.js
+# Mail Configuration
+mail.conf.json
