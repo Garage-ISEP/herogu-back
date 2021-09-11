@@ -6,6 +6,7 @@ import { MailerService } from './services/mailer.service';
 import { DockerService } from './services/docker.service';
 import { AuthController } from './controllers/auth/auth.controller';
 import { GoogleRecaptchaModule, GoogleRecaptchaNetwork } from '@nestlab/google-recaptcha';
+import { ProjectController } from './controllers/project/project.controller';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { GoogleRecaptchaModule, GoogleRecaptchaNetwork } from '@nestlab/google-r
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, ProjectController],
   providers: [MailerService, DockerService],
 })
 export class AppModule {}
