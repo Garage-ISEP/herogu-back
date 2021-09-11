@@ -59,7 +59,7 @@ export class MailerService implements OnModuleInit {
         subject: "Vérification mail Herogu",
         html: `
           Pour vérifier votre mail, cliquez sur ce lien : <br>
-          <a target="_blank" href='https://herogu.garageisep.com/verify?token=${code}'>lien</a>
+          <a target="_blank" href='${process.env.BASE_URL}/verify?token=${code}'>lien</a>
         `
       });
     } catch (e) {

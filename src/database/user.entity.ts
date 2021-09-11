@@ -2,6 +2,7 @@ import { Project } from './project.entity';
 import { Collaborator } from './collaborator.entity';
 import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { Role } from "./role.entity";
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class User extends BaseEntity {
@@ -22,13 +23,14 @@ export class User extends BaseEntity {
   public studentId: string;
 
   @Column()
-  public hashPassword: string;
+  @Exclude()
+  public password: string;
 
-  @Column("boolean")
+  @Column("boolean", { default: false })
   public verified: boolean;
 
-  @Column()
-  public lastVerifiedMail: Date;
+  @Column({ nullable: true })
+  public lastVerifiedMail?: Date;
 
   @ManyToOne(() => Role)
   @JoinColumn()
