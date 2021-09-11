@@ -4,6 +4,7 @@ import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerService } from './services/mailer.service';
 import { DockerService } from './services/docker.service';
+import { AuthController } from './controllers/auth/auth.controller';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { DockerService } from './services/docker.service';
       synchronize: process.env.NODE_ENV === "dev",
     })
   ],
-  controllers: [],
+  controllers: [AuthController],
   providers: [MailerService, DockerService],
 })
 export class AppModule {}
