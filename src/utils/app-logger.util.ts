@@ -6,6 +6,9 @@ import { Injectable, Logger, Module } from '@nestjs/common';
 })
 export class AppLogger extends Logger {
 
+  info(...message: any[]) {
+    super.log(message.join(" "), "AppLogger");
+  }
   log(...message: any[]) {
     super.log(message.join(" "), "AppLogger");
   }

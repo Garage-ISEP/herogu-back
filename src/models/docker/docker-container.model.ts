@@ -82,3 +82,11 @@ export interface CreateDbConf {
   username: string;
   projectName: string;
 }
+
+export class DbCredentials {
+  constructor(
+    public dbName: string,
+    public username: string,
+    public password: string
+  ) {}
+}

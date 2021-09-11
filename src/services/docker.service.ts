@@ -1,23 +1,25 @@
-import { LoggerService } from '@nestjs/common';
-import { Injectable, OnInit } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';
-import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
+import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { UniqueID } from "nodejs-snowflake";
 import { Parser } from 'node-sql-parser';
 import { dockerLabelsConf } from 'src/config/docker.conf';
+import { AppLogger } from 'src/utils/app-logger.util';
+import { ProjectCreationException } from 'src/errors/docker.exception';
+import { Observable } from 'rxjs';
 @Injectable()
-export class DockerService implements OnInit {
+export class DockerService implements OnModuleInit {
   
   private readonly _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
   private _statusListeners: { [id: string]: (status: ContainerStatus, exitCode?: number) => void } = {};
 
   constructor(
-    private readonly _logger: LoggerService,
+    private readonly _logger: AppLogger,
     private readonly _mail: MailerService,
   ) { }
 
-  public async ngOnInit() {
+  public async onModuleInit() {
     try {
       await this._docker.ping();
       await this._listenStatusEvents();
@@ -40,7 +42,7 @@ export class DockerService implements OnInit {
    * The listener is called line by line for the logs
    * Throw an error if the container name doesn't exist
    */
-  public async listenContainerLogs(name: string, listener?: (data: string) => void) {
+  public async listenContainerLogs(name: string): Promise<Observable<string>> {
     try {
       const id = await this._getContainerIdFromName(name);
       const options: ContainerLogsConfig = {
@@ -50,9 +52,11 @@ export class DockerService implements OnInit {
         stderr: true,
       };
       const stream = await this._docker.getContainer(id).attach(options);
-      stream.on("data", (data: Buffer | string) =>
-        data.toString().split('\n').forEach(line => listener(line))
-      );
+      return new Observable<string>(observer => {
+        stream.on("data", (data: Buffer | string) => data.toString().split('\n').forEach(line => observer.next(line)));
+        stream.on("error", (e) => observer.error(e));
+        stream.on("close", () => observer.complete());
+      });
     } catch (e) {
       throw new Error("Cannot find container with name " + name);
     }
@@ -102,7 +106,6 @@ export class DockerService implements OnInit {
               web: { Aliases: ["web"] },
             },
           },
-          HostConfig
         });
         await container.start({});
         this._logger.info("Container", config.name, "created and started");
@@ -121,22 +124,24 @@ export class DockerService implements OnInit {
    * Create a mysql db with user
    * An optional sql fileName can be provided to hydrate the db 
    */
-  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<{dbName: string, username: string, password: string}> {
-    const username = (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10);
-    const dbName = (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64);
-    const password = await new UniqueID().asyncGetUniqueID() as string;
+  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<DbCredentials> {
+    const creds = new DbCredentials(
+      (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
+      (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
+      await new UniqueID().asyncGetUniqueID() as string
+    );
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${username}' IDENTIFIED BY '${password}'`);
-      await this._mysqlQuery(`GRANT ALL ON ${dbName}.* TO '${username}'`);
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.username}' IDENTIFIED BY '${creds.password}'`);
+      await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}'`);
       await this._mysqlQuery("FLUSH PRIVILEGES");
-      await this._mysqlQuery("CREATE TABLE Bienvenu (Message varchar(255))", dbName);
-      sql && await this.execSQLFile(sql, dbName, username, password);
-      await this._mysqlQuery(`INSERT INTO Bienvenu (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
-      return { dbName, username, password };
+      await this._mysqlQuery("CREATE TABLE Bienvenue (Message varchar(255))", creds.dbName);
+      if (sql) await this.execSQLFile(sql, creds.dbName, creds.username, creds.password);
+      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, dbName, username, password);
+      return creds;
     } catch (e) {
       this._logger.error(e);
-      throw new ProjectCreationError("Error while Creating DB With USER");
+      throw new ProjectCreationException("Error while Creating DB With USER");
     }
   }
 
@@ -147,15 +152,13 @@ export class DockerService implements OnInit {
     try {
       if (sql) new Parser().parse(sql);      
     } catch (e) {
-      const err = new ProjectCreationError("Error when parsing SQL File");
-      err.code = 1;
-      throw err;
+      throw new ProjectCreationException("Error when parsing SQL File");
     }
     try {
       await this._mysqlQuery(sql, dbName, username, password);
     } catch (e) {
       this._logger.error(e);
-      throw new ProjectCreationError("Error while adding sql to db");
+      throw new ProjectCreationException("Error while adding sql to db");
     }
   }
 
@@ -322,18 +325,15 @@ export class DockerService implements OnInit {
         stdin: true,
         hijack: true
       }));
-      stream.on("data",
-        (chunk: string) => {
-          if (!stream.readable) return;
+      stream.on("data", (chunk: string) => {
+        if (!stream.readable) return;
         if (chunk.toString().toLowerCase().includes("error"))
           reject(`Execution error : ${str.join(" ")}, ${chunk}`);
         else if (!chunk.toString().toLocaleLowerCase().includes("warning"))
           this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk}`);
-      }).on("end",
-        () => resolve()
-      ).on("error",
-        (e) => reject(`Execution error : ${str.join(" ")}, ${e}`)
-      );
+      })
+      .on("end", () => resolve())
+      .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
     });
   }
 }
