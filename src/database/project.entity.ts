@@ -16,6 +16,9 @@ export class Project extends BaseEntity {
   @Column()
   public dockerImgLink: string;
 
+  @Column({ type: "int" })
+  public repoId: number;
+
   @Column()
   public lastBuild: Date;
 

@@ -1,5 +1,5 @@
 import { AppLogger } from './utils/app-logger.util';
-import { Module } from '@nestjs/common';
+import { HttpModule, Module } from '@nestjs/common';
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerService } from './services/mailer.service';
@@ -7,12 +7,13 @@ import { DockerService } from './services/docker.service';
 import { AuthController } from './controllers/auth/auth.controller';
 import { GoogleRecaptchaModule, GoogleRecaptchaNetwork } from '@nestlab/google-recaptcha';
 import { ProjectController } from './controllers/project/project.controller';
-import { GithubService } from './services/github/github.service';
+import { GithubService } from './services/github.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot(), //env configuration
     AppLogger, //Custom logger
+    HttpModule,
     TypeOrmModule.forRoot({   //Database configuration
       type: 'postgres',
       host: process.env.DB_HOST,
