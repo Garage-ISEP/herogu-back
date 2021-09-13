@@ -35,6 +35,9 @@ export class Project extends BaseEntity {
   public mysqlDatabase: string;
 
   @Column()
+  public mysqlEnabled: boolean;
+
+  @Column()
   public lastBuild: Date;
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })

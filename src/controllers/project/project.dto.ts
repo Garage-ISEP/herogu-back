@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsObject, IsOptional, IsString, IsUrl, MaxLength, MinLength } from "class-validator";
+import { IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsUrl, MaxLength, MinLength } from "class-validator";
 
 export class CreateProjectDto {
   @MinLength(5)
@@ -9,6 +9,9 @@ export class CreateProjectDto {
 
   @IsEnum(["nginx", "php"])
   public type: "nginx" | "php";
+
+  @IsBoolean()
+  public mysqlEnabled = false;
 }
 
 export class DockerLinkDto {
