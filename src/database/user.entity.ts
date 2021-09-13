@@ -29,6 +29,9 @@ export class User extends BaseEntity {
   @Column("boolean", { default: false })
   public verified: boolean;
 
+  @Column({ default: false })
+  public admin: boolean;
+
   @Column({ nullable: true })
   public lastVerifiedMail?: Date;
 
@@ -39,6 +42,6 @@ export class User extends BaseEntity {
   @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: true })
   public collaborators: Collaborator[];
 
-  @OneToMany(() => Project, project => project.creator, { cascade: true })
+  @OneToMany(() => Project, project => project.creator, { cascade: ["insert", "recover", "update"] })
   public createdProjects: Project[];
 }

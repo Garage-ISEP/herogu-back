@@ -8,6 +8,8 @@ import { AuthController } from './controllers/auth/auth.controller';
 import { GoogleRecaptchaModule, GoogleRecaptchaNetwork } from '@nestlab/google-recaptcha';
 import { ProjectController } from './controllers/project/project.controller';
 import { GithubService } from './services/github.service';
+import { AdminUserController } from './controllers/admin/user/user.controller';
+import { AdminProjectController } from './controllers/admin/project/project.controller';
 
 @Module({
   imports: [
@@ -31,7 +33,7 @@ import { GithubService } from './services/github.service';
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController, ProjectController],
+  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
   providers: [MailerService, DockerService, GithubService],
 })
 export class AppModule {}
