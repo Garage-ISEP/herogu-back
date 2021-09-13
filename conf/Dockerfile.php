@@ -8,6 +8,7 @@ RUN a2enmod rewrite
 RUN a2disconf serve-cgi-bin
 
 COPY ./docker/php.ini /etc/php/php.ini
+COPY . /var/www/html
 
 LABEL ORIGIN herogu.garageisep.com
 
