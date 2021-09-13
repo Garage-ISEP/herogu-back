@@ -1,8 +1,8 @@
 import { InternalServerErrorException } from "@nestjs/common";
 
 export class ProjectCreationException extends InternalServerErrorException {
-  constructor(message: string) {
-    super({ reason: message, code: 0 });
+  constructor(message: string, public code = 0) {
+    super({ reason: message, code });
   }
 }
 

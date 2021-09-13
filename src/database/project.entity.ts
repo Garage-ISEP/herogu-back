@@ -16,11 +16,23 @@ export class Project extends BaseEntity {
   @Column()
   public githubLink: string;
 
-  @Column()
-  public shas: string[];
+  @Column({ nullable: true })
+  public shas?: string[];
 
   @Column({ type: "int" })
   public repoId: number;
+
+  @Column({ type: "enum", enum: ["nginx", "php"] })
+  public type: "nginx" | "php";
+
+  @Column()
+  public mysqlUser: string;
+
+  @Column()
+  public mysqlPassword: string;
+
+  @Column()
+  public mysqlDatabase: string;
 
   @Column()
   public lastBuild: Date;

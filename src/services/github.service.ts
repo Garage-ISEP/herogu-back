@@ -28,12 +28,16 @@ export class GithubService implements OnModuleInit {
     }
   }
   
+  public async getRepoId(url: string) {
+    const [owner, repo] = url.split("/").slice(-2);
+    const repoInstallation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    return repoInstallation.data.id;
+  }
   /**
    * Create the repo and returns the lists of shas generated from the files
    */
   public async addOrUpdateConfiguration(url: string, repoId: number, type: "nginx" | "php"): Promise<string[]> {
     const [owner, repo] = url.split("/").slice(-2);
-    // const repoInstallation = await this._client.octokit.rest.apps.getRepoInstallation({ owner: "Totodore", repo: "1942" });
     
     const octokit = await this._client.getInstallationOctokit(repoId);
     const res = await Promise.all([
