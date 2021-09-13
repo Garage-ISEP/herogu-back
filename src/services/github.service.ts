@@ -5,7 +5,8 @@ import * as yaml from "yaml";
 import * as fs from "fs/promises";
 import * as sodium from "tweetsodium";
 import { AppLogger } from 'src/utils/app-logger.util';
-import cryptoRandomString from "crypto-random-string";
+import { v4 as getUuid } from "uuid";
+import btoa from "btoa";
 @Injectable()
 export class GithubService implements OnModuleInit {
   
@@ -109,10 +110,10 @@ export class GithubService implements OnModuleInit {
    * CR_PAT: The secret in order to publish the image
    */
   private async _addConfiguration(octokit: Octokit, owner: string, repo: string): Promise<void> {
-    const deployUrlKey = Buffer.from(cryptoRandomString({ length: 16, type: "base64" }));
+    const deployUrlKey = btoa(getUuid());
     const deployUrl = sodium.seal(
       Buffer.from(`http://deploy.herogu.garageisep.com/deploy/${repo}`),
-      deployUrlKey
+      Buffer.from(deployUrlKey)
     );
     Promise.all([
       octokit.rest.actions.createOrUpdateRepoSecret({

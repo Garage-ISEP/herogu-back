@@ -16,7 +16,7 @@ export class Project extends BaseEntity {
   @Column()
   public githubLink: string;
 
-  @Column({ nullable: true })
+  @Column("text", { nullable: true, array: true })
   public shas?: string[];
 
   @Column({ type: "int" })
