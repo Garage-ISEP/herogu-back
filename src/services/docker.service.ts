@@ -7,12 +7,12 @@ import { Parser } from 'node-sql-parser';
 import { dockerLabelsConf } from 'src/config/docker.conf';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
-import { Observable } from 'rxjs';
+import { Observable, Observer } from 'rxjs';
 @Injectable()
 export class DockerService implements OnModuleInit {
   
   private readonly _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
-  private _statusListeners: { [id: string]: (status: ContainerStatus, exitCode?: number) => void } = {};
+  private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
 
   constructor(
     private readonly _logger: AppLogger,
@@ -152,7 +152,7 @@ export class DockerService implements OnModuleInit {
     try {
       if (sql) new Parser().parse(sql);      
     } catch (e) {
-      throw new ProjectCreationException("Error when parsing SQL File");
+      throw new ProjectCreationException("Error when parsing SQL File", 2);
     }
     try {
       await this._mysqlQuery(sql, dbName, username, password);
@@ -194,15 +194,18 @@ export class DockerService implements OnModuleInit {
    * The handler will be called with the actual status at the end of this method
    * Throw an error if there is no container with this name
    */
-  public async listenContainerStatus(name: string, handler: (status: ContainerStatus, exitCode: number) => void): Promise<void> {
+  public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number]>> {
     let id: string;
     try {
       id = await this._getContainerIdFromName(name);
     } catch (e) {
       throw new Error("Cannot find container with name " + name);
     }
-    this._statusListeners[id] = handler;
+    const observable = new Observable<[ContainerStatus, number]>(observer => {
+      this._statusListeners.set(id, observer);
+    });
     await this._checkStatusEvents(id).catch((e) => console.error(e));
+    return observable;
   }
 
   /**
@@ -250,12 +253,12 @@ export class DockerService implements OnModuleInit {
 
   private async _checkStatusEvents(containerId: string) {
     const state = (await this._docker.getContainer(containerId).inspect()).State;
-    const handler = this._statusListeners[containerId];
+    const handler = this._statusListeners.get(containerId);
 
-    if (state.Restarting) handler(ContainerStatus.Restarting);
-    else if (state.Running) handler(ContainerStatus.Running);
-    else if (state.Dead) handler(ContainerStatus.Error, state.ExitCode);
-    else if (!state.Running) handler(ContainerStatus.Stopped, state.ExitCode);
+    if (state.Restarting) handler.next([ContainerStatus.Restarting]);
+    else if (state.Running) handler.next([ContainerStatus.Running]);
+    else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
+    else if (!state.Running) handler.next([ContainerStatus.Stopped, state.ExitCode]);
   }
 
   /**
