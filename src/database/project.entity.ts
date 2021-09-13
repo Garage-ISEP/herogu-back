@@ -14,7 +14,10 @@ export class Project extends BaseEntity {
   public name: string;
 
   @Column()
-  public dockerImgLink: string;
+  public githubLink: string;
+
+  @Column()
+  public shas: string[];
 
   @Column({ type: "int" })
   public repoId: number;

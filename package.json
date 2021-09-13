@@ -29,6 +29,7 @@
     "btoa": "^1.2.1",
     "class-transformer": "^0.4.0",
     "class-validator": "^0.13.1",
+    "crypto-random-string": "^4.0.0",
     "dockerode": "^3.3.1",
     "jsonwebtoken": "^8.5.1",
     "node-sql-parser": "^3.6.9",
@@ -40,7 +41,9 @@
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.3",
     "swagger-ui-express": "^4.1.6",
-    "typeorm": "^0.2.32"
+    "tweetsodium": "^0.0.5",
+    "typeorm": "^0.2.32",
+    "yaml": "^1.10.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^7.5.1",
@@ -54,6 +57,7 @@
     "@types/node": "^14.14.6",
     "@types/nodemailer": "^6.4.4",
     "@types/supertest": "^2.0.10",
+    "@types/yaml": "^1.9.7",
     "@typescript-eslint/eslint-plugin": "^4.6.1",
     "@typescript-eslint/parser": "^4.6.1",
     "eslint": "^7.12.1",
