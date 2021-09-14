@@ -17,7 +17,7 @@ export class AuthController {
 
   @Get("me")
   @UseGuards(AuthGuard)
-  public async getUser(@CurrentUser(true) user: User): Promise<User> {
+  public async getUser(@CurrentUser() user: User): Promise<User> {
     return user;
   }
 
