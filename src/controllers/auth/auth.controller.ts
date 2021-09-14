@@ -39,6 +39,6 @@ export class AuthController {
         studentId: creds.studentId
       }).save();
     }
-    return new LoginResponse(jwt.sign(user.studentId, user.id), user);
+    return new LoginResponse(jwt.sign(user.studentId, process.env.JWT_SECRET), user);
   }
 }
