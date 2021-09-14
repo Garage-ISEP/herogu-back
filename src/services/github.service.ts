@@ -1,3 +1,4 @@
+import { ProjectType } from './../database/project.entity';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { readFile } from "fs/promises";
@@ -37,7 +38,7 @@ export class GithubService implements OnModuleInit {
   /**
    * Create the repo and returns the lists of shas generated from the files
    */
-  public async addOrUpdateConfiguration(url: string, repoId: number, type: "nginx" | "php"): Promise<string[]> {
+  public async addOrUpdateConfiguration(url: string, repoId: number, type: ProjectType): Promise<string[]> {
     const [owner, repo] = url.split("/").slice(-2);
     
     const octokit = await this._client.getInstallationOctokit(repoId);
@@ -70,14 +71,14 @@ export class GithubService implements OnModuleInit {
    * The container configuration file
    * @returns The shas of the files added
    */
-  private async _addFiles(octokit: Octokit, owner: string, repo: string, type: "nginx" | "php"): Promise<string[]> {
+  private async _addFiles(octokit: Octokit, owner: string, repo: string, type: ProjectType): Promise<string[]> {
     const doc = yaml.parseDocument((await fs.readFile("./conf/herogu-ci.yml")).toString());
     doc.set("env.IMAGE_NAME", repo);
 
     let dockerfile = (await fs.readFile(`./conf/Dockerfile.${type}`)).toString();
     dockerfile += `\nLABEL org.opencontainers.image.source ${repo}`;
 
-    const config = (await fs.readFile(`./conf/${type === "nginx" ? "nginx.conf" : "php.ini"}`)).toString();
+    const config = (await fs.readFile(`./conf/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`)).toString();
     const res = await Promise.all([
       octokit.rest.repos.createOrUpdateFileContents({
         path: ".github/workflows/herogu-ci.yml",
@@ -94,7 +95,7 @@ export class GithubService implements OnModuleInit {
         content: dockerfile
       }),
       octokit.rest.repos.createOrUpdateFileContents({
-        path: `docker/${type === "nginx" ? "nginx.conf" : "php.ini"}`,
+        path: `docker/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`,
         message: "Adding Herogu deployment and containerisation configuration",
         owner,
         repo,

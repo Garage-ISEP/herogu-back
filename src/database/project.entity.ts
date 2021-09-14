@@ -4,6 +4,11 @@ import { Column, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { BaseEntity } from 'typeorm';
 
+
+export enum ProjectType {
+  NGINX = "NGINX",
+  PHP = "PHP",
+}
 @Entity()
 export class Project extends BaseEntity {
 
@@ -22,8 +27,8 @@ export class Project extends BaseEntity {
   @Column({ type: "int" })
   public repoId: number;
 
-  @Column({ type: "enum", enum: ["nginx", "php"] })
-  public type: "nginx" | "php";
+  @Column({ type: "enum", enum: ProjectType })
+  public type: ProjectType;
 
   @Column()
   public mysqlUser: string;
