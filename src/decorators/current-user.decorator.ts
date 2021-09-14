@@ -4,10 +4,10 @@ import * as jwt from "jsonwebtoken";
 
 export const CurrentUser = createParamDecorator(async (getProject: boolean, ctx: ExecutionContext) => {
   const request = ctx.switchToHttp().getRequest() || ctx.switchToWs().getClient().req;
-  return request.user || await User.findOne({
+  return request.meta?.user || await User.findOne({
     where: {
-      userId: jwt.decode((request.headers?.authorization || request.query?.authorization).substr(7))
+      studentId: jwt.decode((request.headers?.authorization || request.query?.authorization).substr(7))
     },
-    relations: ["collaborators", "createdProjects", "role", ...(getProject ? ["collaborators.projects"] : [])]
+    relations: ["collaborators", ...(getProject ? ["collaborators.project"] : [])]
   });
 });

@@ -1,5 +1,5 @@
 import { Project } from './project.entity';
-import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
 
 export enum Role {
@@ -29,5 +29,11 @@ export class Collaborator extends BaseEntity {
 
   @Column({ type: "enum", enum: Role })
   public role: Role;
+
+  @CreateDateColumn()
+  public createdDate: Date;
+
+  @UpdateDateColumn()
+  public updatedDate: Date;
 }
 
