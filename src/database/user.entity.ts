@@ -25,7 +25,4 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: ["update"] })
   public collaborators: Collaborator[];
-
-  @OneToMany(() => Project, project => project.creator, { cascade: ["insert", "recover", "update"] })
-  public createdProjects: Project[];
 }
