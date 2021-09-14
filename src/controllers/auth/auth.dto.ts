@@ -9,7 +9,6 @@ export class LoginDto {
 
   @MinLength(8)
   @IsNotEmpty()
-  @ValidateIf(password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password))
   public password: string;
 }
 
