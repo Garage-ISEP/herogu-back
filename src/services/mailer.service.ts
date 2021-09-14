@@ -46,25 +46,4 @@ export class MailerService implements OnModuleInit {
       this._logger.error("Error sending error mail !", e);
     }
   }
-
-  /**
-   * Envoie un mail de vérification
-   * Throw une erreur en cas de non envoie du mail
-   */
-  public async sendVerificationMail(email: string, code: string) {
-    try {
-      await this._transporter.sendMail({
-        to: email,
-        from: mailConf.mail,
-        subject: "Vérification mail Herogu",
-        html: `
-          Pour vérifier votre mail, cliquez sur ce lien : <br>
-          <a target="_blank" href='${process.env.BASE_URL}/verify?token=${code}'>lien</a>
-        `
-      });
-    } catch (e) {
-      this._logger.error(e);
-      throw new Error("Error sending verification mail");
-    }
-  }
 }

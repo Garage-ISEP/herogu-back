@@ -1,8 +1,6 @@
 import { Project } from './project.entity';
 import { Collaborator } from './collaborator.entity';
 import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-import { Role } from "./role.entity";
-import { Exclude } from 'class-transformer';
 
 @Entity()
 export class User extends BaseEntity {
@@ -19,27 +17,13 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   public mail: string;
 
-  @Column({ unique: true, type: "varchar", length: 6 })
+  @Column({ unique: true, type: "varchar", length: 9 })
   public studentId: string;
-
-  @Column()
-  @Exclude()
-  public password: string;
-
-  @Column("boolean", { default: false })
-  public verified: boolean;
 
   @Column({ default: false })
   public admin: boolean;
 
-  @Column({ nullable: true })
-  public lastVerifiedMail?: Date;
-
-  @ManyToOne(() => Role)
-  @JoinColumn()
-  public role: Role;
-
-  @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: true })
+  @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: ["update"] })
   public collaborators: Collaborator[];
 
   @OneToMany(() => Project, project => project.creator, { cascade: ["insert", "recover", "update"] })

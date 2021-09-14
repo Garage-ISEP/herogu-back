@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, UseGuards } from '@nestjs/common';
+import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project } from 'src/database/project.entity';
 import { User } from 'src/database/user.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
@@ -34,10 +35,11 @@ export class ProjectController {
   }
 
   @Post('/')
-  public async createProject(@Body() project: CreateProjectDto, @CurrentUser() user: User) {
-    if (await Project.count({ where: { githubLink: project.githubLink } }))
+  public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
+    if (await Project.count({ where: { githubLink: projectReq.githubLink } }))
       throw new BadRequestException("This repository has already been registered");
-    await Project.create({ creator: user, ...project }).save();
+    const project = await Project.create({ creator: user, ...projectReq }).save();
+    await Collaborator.create({ project, user, role: Role.OWNER }).save();
   }
 
   @Post('/:id/github-link')

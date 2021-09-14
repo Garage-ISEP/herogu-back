@@ -10,6 +10,7 @@ import { ProjectController } from './controllers/project/project.controller';
 import { GithubService } from './services/github.service';
 import { AdminUserController } from './controllers/admin/user/user.controller';
 import { AdminProjectController } from './controllers/admin/project/project.controller';
+import { SsoService } from './services/sso.service';
 
 @Module({
   imports: [
@@ -34,6 +35,6 @@ import { AdminProjectController } from './controllers/admin/project/project.cont
     }),
   ],
   controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
-  providers: [MailerService, DockerService, GithubService],
+  providers: [MailerService, DockerService, GithubService, SsoService],
 })
 export class AppModule {}
