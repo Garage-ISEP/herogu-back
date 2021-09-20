@@ -49,6 +49,15 @@ export class GithubService implements OnModuleInit {
     return res[0];
   }
 
+  public async verifyInstallation(url: string) {
+    const [owner, repo] = url.split("/").slice(-2);
+    try {
+      return !!await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    } catch (e) {
+      return false;
+    }
+  }
+
   /**
    * Verify the configuration from the different shas
    */
