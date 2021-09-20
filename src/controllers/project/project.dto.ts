@@ -1,7 +1,10 @@
-import { IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsUrl, MaxLength, MinLength } from "class-validator";
+import { IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
 
 export class CreateProjectDto {
-  @MinLength(5)
+  @MinLength(3)
+  @MaxLength(10)
+  @Matches(/[a-zA-Z ]*/)
+  @Matches(/^((?!create).)*$/)
   public name: string;
 
   @IsUrl()
