@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
 import { User } from 'src/database/user.entity';
@@ -27,6 +27,11 @@ export class ProjectController {
     if (!!await Project.findOne({ where: { name } })) {
       throw new BadRequestException("This project name already exists");
     }
+  }
+
+  @Get("/check-bot-github")
+  public async checkProjectGithubLink(@Query("link") link: string) {
+    return await this._github.verifyInstallation(link);
   }
 
   @Get('/:id')
