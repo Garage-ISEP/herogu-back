@@ -25,6 +25,7 @@ export class GithubService implements OnModuleInit {
     try {
       this._logger.log("Checking Github App connection...");
       await this._client.octokit.rest.apps.getAuthenticated();
+      this._logger.log("Github App connection OK");
     } catch (e) {
       this._logger.error("Github App connection failed", e);
     }

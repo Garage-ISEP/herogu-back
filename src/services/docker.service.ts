@@ -21,9 +21,10 @@ export class DockerService implements OnModuleInit {
 
   public async onModuleInit() {
     try {
+      this._logger.log("Checking docker connection");
       await this._docker.ping();
       await this._listenStatusEvents();
-      this._logger.log("DockerService enabled");
+      this._logger.log("Docker connection OK");
     } catch (e) {
       this._logger.log("Impossible to reach docker sock");
       this._logger.error(e);
