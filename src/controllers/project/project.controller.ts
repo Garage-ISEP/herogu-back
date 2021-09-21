@@ -41,9 +41,12 @@ export class ProjectController {
 
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
-    if (await Project.count({ where: { githubLink: projectReq.githubLink } }))
+    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink, name: projectReq.name }, relations: ["creator"] });
+    if (project && project.creator.id !== user.id)
       throw new BadRequestException("This repository has already been registered");
-    await Project.create({
+    else if (project?.creator?.id === user.id)
+      return project;
+    return await Project.create({
       creator: user,
       ...projectReq,
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
@@ -72,6 +75,8 @@ export class ProjectController {
   public async linkToDocker(@CurrentProject() project: Project, @Body() body: DockerLinkDto) {
     try {
       await this._docker.launchContainerFromConfig({ url: project.githubLink, email: project.creator.mail, name: project.name, ...body });
+      project.env = body.env || {};
+      project.save();
     } catch (e) {
       throw new InternalServerErrorException(e.message);
     }

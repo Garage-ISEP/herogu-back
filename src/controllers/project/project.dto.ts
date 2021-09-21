@@ -24,6 +24,7 @@ export class CreateProjectDto {
 export class DockerLinkDto {
 
   @IsObject()
+  @IsOptional()
   public env: { [key: string]: string };
 }
 
