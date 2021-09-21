@@ -24,32 +24,35 @@ export class Project extends BaseEntity {
   @Column("text", { nullable: true, array: true })
   public shas?: string[];
 
-  @Column({ type: "int" })
+  @Column({ type: "int", nullable: true })
   public repoId: number;
 
   @Column({ type: "enum", enum: ProjectType })
   public type: ProjectType;
 
-  @Column()
+  @Column({ nullable: true})
   public mysqlUser: string;
 
-  @Column()
+  @Column({ nullable: true})
   public mysqlPassword: string;
 
-  @Column()
+  @Column({ nullable: true})
   public mysqlDatabase: string;
 
   @Column()
   public mysqlEnabled: boolean;
 
   @Column()
-  public lastBuild: Date;
+  public notificationsEnabled: boolean;
+
+  @Column({ nullable: true})
+  public lastBuild?: Date;
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()
   public creator: User;
 
-  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: true })
+  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"] })
   public collaborators: Collaborator[];
 
   @CreateDateColumn()

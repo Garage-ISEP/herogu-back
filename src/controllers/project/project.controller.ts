@@ -43,8 +43,15 @@ export class ProjectController {
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
     if (await Project.count({ where: { githubLink: projectReq.githubLink } }))
       throw new BadRequestException("This repository has already been registered");
-    const project = await Project.create({ creator: user, ...projectReq, type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP }).save();
-    await Collaborator.create({ project, user, role: Role.OWNER }).save();
+    await Project.create({
+      creator: user,
+      ...projectReq,
+      type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
+      collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
+        user,
+        role: Role.COLLABORATOR
+      })), Collaborator.create({ user, role: Role.OWNER })]
+    }).save();
   }
 
   @Post('/:id/github-link')
