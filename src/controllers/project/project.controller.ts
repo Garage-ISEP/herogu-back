@@ -9,7 +9,7 @@ import { AuthGuard } from 'src/guards/auth.guard';
 import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
-import { CreateProjectDto, DockerLinkDto, MysqlLinkDto } from './project.dto';
+import { CreateProjectDto, DockerLinkDto, GithubLinkDto, MysqlLinkDto } from './project.dto';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -58,15 +58,13 @@ export class ProjectController {
   }
 
   @Post('/:id/github-link')
-  public async linkToGithub(@CurrentProject() project: Project) {
+  public async linkToGithub(@CurrentProject() project: Project, @Body() body: GithubLinkDto) {
     try {
-      project.repoId = await this._github.getRepoId(project.githubLink);
+      project.repoId ??= await this._github.getRepoId(project.githubLink);
+      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, body.accessToken);
     } catch (e) {
+      this._logger.error(e);
       throw new InternalServerErrorException(e.message);
-    }
-    try {
-      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type);
-    } catch (e) {
     }
     await project.save();
   }

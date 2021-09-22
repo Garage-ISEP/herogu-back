@@ -25,7 +25,6 @@
     "@nestjs/typeorm": "^7.1.5",
     "@nestlab/google-recaptcha": "^2.1.1",
     "@octokit/auth-app": "^3.6.0",
-    "btoa": "^1.2.1",
     "class-transformer": "^0.4.0",
     "class-validator": "^0.13.1",
     "dockerode": "^3.3.1",

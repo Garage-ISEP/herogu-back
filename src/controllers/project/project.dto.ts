@@ -21,6 +21,12 @@ export class CreateProjectDto {
   public addedUsers: string[];
 }
 
+export class GithubLinkDto {
+  
+  @IsString()
+  public accessToken: string;
+}
+
 export class DockerLinkDto {
 
   @IsObject()
