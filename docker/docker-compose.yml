@@ -11,15 +11,15 @@ services:
       - "web"
     restart: always
     volumes:
-      ./conf:/app
+      - ./conf:/app
     labels:
       # Traefik configuration
       traefik.enable: 'true'
-      traefik.http.routers.herogu-api-secure.rule: Host(`herogu.garageisep.com`)
+      traefik.http.routers.herogu-api-secure.rule: Host(`api.herogu.garageisep.com`)
       traefik.http.routers.herogu-api-secure.entrypoints: websecure
       traefik.http.routers.herogu-api-secure.tls.certresolver: myhttpchallenge
       traefik.http.middlewares.redirect.redirectscheme.scheme: https
-      traefik.http.routers.herogu-api.rule: Host(`herogu.garageisep.com`)
+      traefik.http.routers.herogu-api.rule: Host(`api.herogu.garageisep.com`)
       traefik.http.routers.herogu-api.entrypoints: web
       traefik.http.routers.herogu-api.middlewares: redirect
       
@@ -30,6 +30,20 @@ services:
       docker-ci.username: Totodore
       docker-ci.auth-server: https://docker.pkg.github.com
       docker-ci.password: 
+  mysql:
+    image: mysql
+    container_name: herogu-mysql
+    tty: true
+    restart: always
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql-herogu-data:/var/lib/mysql
+    env_file:
+      - app.env
 networks:
   web:
     external: true
+
+volumes:
+  mysql-herogu-data:
