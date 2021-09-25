@@ -23,3 +23,9 @@ export class NoMysqlContainerException extends InternalServerErrorException {
     super({ code: 3 }, "No Mysql container found !");
   }
 }
+
+export class DockerImageNotFoundException extends InternalServerErrorException {
+  constructor() {
+    super({ code: 4 }, "Docker image not found !");
+  }
+}

@@ -1,4 +1,4 @@
-import { NoMysqlContainerException } from './../errors/docker.exception';
+import { DockerImageNotFoundException, NoMysqlContainerException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
@@ -76,9 +76,10 @@ export class DockerService implements OnModuleInit {
     try {
       (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url));
     } catch (e) {
-      this._logger.info("Impossible to get image from url :", config.url);
-      this._logger.info("Image doesn't exists, impossible to continue, incident will be reported");
+      this._logger.error("Impossible to get image from url :", config.url);
+      this._logger.error("Image doesn't exists, impossible to continue, incident will be reported");
       this._mail.sendErrorMail(this, "Error pulling image : ", e);
+      throw new DockerImageNotFoundException();
     }
     try {
       await this.removeContainerFromName(config.name);
@@ -282,7 +283,7 @@ export class DockerService implements OnModuleInit {
    * Get a local image id from its url
    * @param url
    */
-  private async _getImageIdFromUrl(url: string): Promise<string | null> {
+  private async _getImageIdFromUrl(url: string): Promise<string | undefined> {
     try {
       for (const el of await this._docker.listImages({ all: true })) {
         if (el.RepoTags.includes(url)) return el.Id;
