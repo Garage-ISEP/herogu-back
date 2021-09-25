@@ -75,7 +75,7 @@ export class ProjectController {
   @Sse("/:id/building-link")
   public async buildLink(@CurrentProject() project: Project): Promise<Observable<MessageEvent>> {
     try {
-      return (await this._github.getBuildingActionStatus(project.name)).pipe(map(status => ({
+      return (await this._github.getBuildingActionStatus(project.githubLink, project.repoId)).pipe(map(status => ({
         data: status
       })));
     } catch (e) {

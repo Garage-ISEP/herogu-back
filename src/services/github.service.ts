@@ -60,31 +60,40 @@ export class GithubService implements OnModuleInit {
     }
   }
 
-  public async getBuildingActionStatus(url: string): Promise<Observable<WorkflowRunStatus>> {
+  public async getBuildingActionStatus(url: string, repoId: number): Promise<Observable<WorkflowRunStatus>> {
     const [owner, repo] = url.split("/").slice(-2);
-    const workflows = await this._client.octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo });
-    return new Observable(observer => {
-      if (workflows.data.total_count === 0)
-        return observer.next("none");
-      const status = workflows.data.workflow_runs[0].status;
-      const conclusion = workflows.data.workflow_runs[0].conclusion;
-      if (status === "completed" && conclusion === "success")
-        return observer.next("success");
-      else if (status === "completed" && conclusion !== "success")
-        return observer.next("failure");
-      else if (status === "in_progress" || status === "queued")
-        interval(1500).pipe(map(async () => {
-          const workflowRun = await this._client.octokit.rest.actions.getWorkflowRun({ owner, repo, run_id: workflows.data.workflow_runs[0].id });
-          if (workflowRun.data.status === "completed" && workflowRun.data.conclusion === "success") {
-            observer.next("success");
-            observer.complete();
-          } else if (workflowRun.data.status === "completed" && workflowRun.data.conclusion !== "success") {
-            observer.next("success");
-            observer.complete();
-          } else return observer.next("in_progress");
-        }));
-    });
-    
+    try {
+      const octokit = await this._client.getInstallationOctokit(repoId);
+      const workflows = await octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo });
+      return new Observable(observer => {
+        if (workflows.data.total_count === 0)
+          return observer.next("none");
+        const status = workflows.data.workflow_runs[0].status;
+        const conclusion = workflows.data.workflow_runs[0].conclusion;
+        if (status === "completed" && conclusion === "success")
+          return observer.next("success");
+        else if (status === "completed" && conclusion !== "success")
+          return observer.next("failure");
+        else if (status === "in_progress" || status === "queued") {
+          observer.next({ id: workflows.data.workflow_runs[0].id });
+          const interval = setInterval(async () => {
+            const workflowRun = await octokit.rest.actions.getWorkflowRun({ owner, repo, run_id: workflows.data.workflow_runs[0].id });
+            if (workflowRun.data.status === "completed" && workflowRun.data.conclusion === "success") {
+              observer.next("success");
+              clearInterval(interval);
+              observer.complete();
+            } else if (workflowRun.data.status === "completed" && workflowRun.data.conclusion !== "success") {
+              observer.next("success");
+              clearInterval(interval);
+              observer.complete();
+            } else observer.next("in_progress");
+          }, 1500);
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      return new Observable(observer => observer.next("none"));
+    }
   }
 
   /**

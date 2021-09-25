@@ -12,4 +12,4 @@ export interface GetContentResponse {
   download_url: string;
 }
 
-export type WorkflowRunStatus = "none" | "success" | "in_progress" | "failure";
+export type WorkflowRunStatus = "none" | "success" | "in_progress" | "failure" | { id: number };
