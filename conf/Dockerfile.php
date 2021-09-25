@@ -7,6 +7,8 @@ RUN docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring mysqli exif && dock
 RUN a2enmod rewrite
 RUN a2disconf serve-cgi-bin
 
+RUN service apache2 restart
+
 COPY ./docker/php.ini /etc/php/php.ini
 COPY . /var/www/html
 
