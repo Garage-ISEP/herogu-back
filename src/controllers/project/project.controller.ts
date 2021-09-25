@@ -1,15 +1,18 @@
-import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import { from } from 'form-data';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
 import { User } from 'src/database/user.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
 import { CurrentUser } from 'src/decorators/current-user.decorator';
-import { ProjectCreationException } from 'src/errors/docker.exception';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto, DockerLinkDto, GithubLinkDto, MysqlLinkDto } from './project.dto';
+import { MessageEvent } from "src/models/sse.model";
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -67,6 +70,18 @@ export class ProjectController {
       throw new InternalServerErrorException(e.message);
     }
     await project.save();
+  }
+
+  @Sse("/:id/building-link")
+  public async buildLink(@CurrentProject() project: Project): Promise<Observable<MessageEvent>> {
+    try {
+      return (await this._github.getBuildingActionStatus(project.name)).pipe(map(status => ({
+        data: status
+      })));
+    } catch (e) {
+      this._logger.error(e);
+      throw new InternalServerErrorException("Could not get build action status with github");
+    }
   }
 
   @Post('/:id/docker-link')

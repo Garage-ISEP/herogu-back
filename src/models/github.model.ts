@@ -1,4 +1,4 @@
-interface GetContentResponse {
+export interface GetContentResponse {
   type: string;
   encoding: string;
   size: number;
@@ -12,3 +12,4 @@ interface GetContentResponse {
   download_url: string;
 }
 
+export type WorkflowRunStatus = "none" | "success" | "in_progress" | "failure";
