@@ -107,7 +107,7 @@ export class GithubService implements OnModuleInit {
     const doc = yaml.parseDocument((await fs.readFile("./conf/herogu-ci.yml")).toString());
     doc.set("env.IMAGE_NAME", repo);
 
-    let dockerfile = (await fs.readFile(`./conf/Dockerfile.${type}`)).toString();
+    let dockerfile = (await fs.readFile(`./conf/Dockerfile.${type.toLowerCase()}`)).toString();
     dockerfile += `\nLABEL org.opencontainers.image.source https://github.com/${owner}/${repo}`;
     const config = (await fs.readFile(`./conf/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`)).toString("base64");
     const previousShas = await this._getFilesShas(octokit, owner, repo);
