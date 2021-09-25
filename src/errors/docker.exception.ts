@@ -17,3 +17,9 @@ export class ProjectStoppingException extends InternalServerErrorException {
     super({ code: 2 });
   }
 }
+
+export class NoMysqlContainerException extends InternalServerErrorException {
+  constructor() {
+    super({ code: 3 }, "No Mysql container found !");
+  }
+}

@@ -1,5 +1,6 @@
+import { NoMysqlContainerException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';
+import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { UniqueID } from "nodejs-snowflake";
@@ -23,6 +24,7 @@ export class DockerService implements OnModuleInit {
     try {
       this._logger.log("Checking docker connection");
       await this._docker.ping();
+      await this._getMysqlContainerInfo();
       await this._listenStatusEvents();
       this._logger.log("Docker connection OK");
     } catch (e) {
@@ -214,7 +216,7 @@ export class DockerService implements OnModuleInit {
    * By default it will execute a query with root creds
    * If specified it will execute a query with the given credentials and database name
    */
-  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
+  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_ROOT_PASSWORD) {
     await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
   }
 
@@ -321,7 +323,7 @@ export class DockerService implements OnModuleInit {
    * Execute bash commands in the mysql container
    */
   private async _mysqlExec(...str: string[]) {
-    const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
+    const mysqlId = (await this._getMysqlContainerInfo()).Id;
     const container = this._docker.getContainer(mysqlId);
     return new Promise<void>(async (resolve, reject) => {
       const stream = (await (await container.exec({
@@ -344,5 +346,12 @@ export class DockerService implements OnModuleInit {
       .on("end", () => resolve())
       .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
     });
+  }
+
+  private async _getMysqlContainerInfo(): Promise<ContainerInfo> {
+    const infos = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql");
+    if (!infos)
+      throw new NoMysqlContainerException();
+    return infos;
   }
 }
