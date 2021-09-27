@@ -64,7 +64,8 @@ export class ProjectController {
   public async linkToGithub(@CurrentProject() project: Project, @Body() body: GithubLinkDto) {
     try {
       project.repoId ??= await this._github.getRepoId(project.githubLink);
-      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, body.accessToken);
+      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas))
+        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, body.accessToken);
     } catch (e) {
       this._logger.error(e);
       throw new InternalServerErrorException(e.message);

@@ -106,6 +106,7 @@ export class GithubService implements OnModuleInit {
       if (!shas.includes(sha))
         return false;
     }
+    return true;
   }
 
   /**
