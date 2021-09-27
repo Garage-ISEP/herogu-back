@@ -23,7 +23,7 @@ export class MailerService implements OnModuleInit {
       this._logger.log("Checking mail server configuration...");
       if (!mailConf)
         throw new Error("Mail configuration not found");
-      await this._transporter.verify();
+      // await this._transporter.verify();
       this._logger.log("Mail server configuration OK");
 		} catch(e) {
 			this._logger.error("Mail error during verification", e);

@@ -19,19 +19,14 @@ export class CreateProjectDto {
   @IsArray()
   @ArrayMaxSize(10)
   public addedUsers: string[];
-}
 
-export class GithubLinkDto {
-  
   @IsString()
   public accessToken: string;
-}
-
-export class DockerLinkDto {
 
   @IsObject()
   @IsOptional()
-  public env: { [key: string]: string };
+  public env: { [key: string]: string } = {};
+  
 }
 
 export class MysqlLinkDto {

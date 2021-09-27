@@ -9,6 +9,7 @@ import * as sodium from "tweetsodium";
 import { interval, Observable } from 'rxjs';
 import { map } from "rxjs/operators";
 import { WorkflowRunStatus, GetContentResponse } from 'src/models/github.model';
+import e from 'express';
 @Injectable()
 export class GithubService implements OnModuleInit {
   
@@ -51,6 +52,18 @@ export class GithubService implements OnModuleInit {
     return res[0];
   }
 
+  /**
+   * Disable all workflow runs except the last one
+   */
+  public async disableAllWorkflowRuns(url: string, repoId: number) {
+    const octokit = await this._client.getInstallationOctokit(repoId);
+    const [owner, repo] = url.split("/").slice(-2);
+    const workflows = await octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo });
+    for (const workflow of workflows.data.workflow_runs.filter((el, index) => (el.status === "queued" || el.status === "in_progress") && index !== 0)) {
+      await octokit.rest.actions.cancelWorkflowRun({ owner, repo, run_id: workflow.id });
+    }
+  }
+
   public async verifyInstallation(url: string) {
     const [owner, repo] = url.split("/").slice(-2);
     try {
@@ -59,43 +72,6 @@ export class GithubService implements OnModuleInit {
       return false;
     }
   }
-
-  public async getBuildingActionStatus(url: string, repoId: number): Promise<Observable<WorkflowRunStatus>> {
-    const [owner, repo] = url.split("/").slice(-2);
-    try {
-      const octokit = await this._client.getInstallationOctokit(repoId);
-      const workflows = await octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo });
-      return new Observable(observer => {
-        if (workflows.data.total_count === 0)
-          return observer.next("none");
-        const status = workflows.data.workflow_runs[0].status;
-        const conclusion = workflows.data.workflow_runs[0].conclusion;
-        if (status === "completed" && conclusion === "success")
-          return observer.next("success");
-        else if (status === "completed" && conclusion !== "success")
-          return observer.next("failure");
-        else if (status === "in_progress" || status === "queued") {
-          observer.next({ id: workflows.data.workflow_runs[0].id });
-          const interval = setInterval(async () => {
-            const workflowRun = await octokit.rest.actions.getWorkflowRun({ owner, repo, run_id: workflows.data.workflow_runs[0].id });
-            if (workflowRun.data.status === "completed" && workflowRun.data.conclusion === "success") {
-              observer.next("success");
-              clearInterval(interval);
-              observer.complete();
-            } else if (workflowRun.data.status === "completed" && workflowRun.data.conclusion !== "success") {
-              observer.next("success");
-              clearInterval(interval);
-              observer.complete();
-            } else observer.next("in_progress");
-          }, 1500);
-        }
-      });
-    } catch (e) {
-      console.error(e);
-      return new Observable(observer => observer.next("none"));
-    }
-  }
-
   /**
    * Verify the configuration from the different shas
    */

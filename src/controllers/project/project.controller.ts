@@ -11,8 +11,9 @@ import { AuthGuard } from 'src/guards/auth.guard';
 import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
-import { CreateProjectDto, DockerLinkDto, GithubLinkDto, MysqlLinkDto } from './project.dto';
+import { CreateProjectDto, MysqlLinkDto } from './project.dto';
 import { MessageEvent } from "src/models/sse.model";
+import { wait } from 'src/utils/timer.util';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -44,7 +45,7 @@ export class ProjectController {
 
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
-    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink, name: projectReq.name }, relations: ["creator"] });
+    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink }, relations: ["creator"] });
     if (project && project.creator.id !== user.id)
       throw new BadRequestException("This repository has already been registered");
     else if (project?.creator?.id === user.id)
@@ -53,6 +54,7 @@ export class ProjectController {
       creator: user,
       ...projectReq,
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
+      repoId: await this._github.getRepoId(projectReq.githubLink),
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
@@ -61,40 +63,27 @@ export class ProjectController {
   }
 
   @Post('/:id/github-link')
-  public async linkToGithub(@CurrentProject() project: Project, @Body() body: GithubLinkDto) {
+  public async linkToGithub(@CurrentProject() project: Project) {
     try {
-      project.repoId ??= await this._github.getRepoId(project.githubLink);
-      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas))
-        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, body.accessToken);
+      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
+        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, project.accessToken);
+        await project.save();
+        await wait(1000);
+        await this._github.disableAllWorkflowRuns(project.githubLink, project.repoId);
+      }
     } catch (e) {
       this._logger.error(e);
       throw new InternalServerErrorException(e.message);
-    }
-    await project.save();
-  }
-
-  @Sse("/:id/building-link")
-  public async buildLink(@CurrentProject() project: Project): Promise<Observable<MessageEvent>> {
-    try {
-      return (await this._github.getBuildingActionStatus(project.githubLink, project.repoId)).pipe(map(status => ({
-        data: status
-      })));
-    } catch (e) {
-      this._logger.error(e);
-      throw new InternalServerErrorException("Could not get build action status with github");
     }
   }
 
   @Post('/:id/docker-link')
-  public async linkToDocker(@CurrentProject() project: Project, @Body() body: DockerLinkDto) {
+  public async linkToDocker(@CurrentProject() project: Project) {
     try {
-      await this._docker.launchContainerFromConfig({ url: project.githubLink, email: project.creator.mail, name: project.name, ...body });
-      project.env = body.env || {};
-      project.save();
+      await this._docker.launchContainerFromConfig({ url: project.githubLink, email: project.creator.mail, name: project.name, env: project.env });
     } catch (e) {
       throw new InternalServerErrorException(e.message);
     }
-    await project.save();
   }
 
   @Post('/:id/mysql-link')

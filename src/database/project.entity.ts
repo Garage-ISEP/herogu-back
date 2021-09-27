@@ -18,13 +18,13 @@ export class Project extends BaseEntity {
   @Column()
   public name: string;
 
-  @Column()
+  @Column({ unique: true })
   public githubLink: string;
 
   @Column("text", { nullable: true, array: true })
   public shas?: string[];
 
-  @Column({ type: "int", nullable: true })
+  @Column({ type: "int", nullable: true, unique: true })
   public repoId: number;
 
   @Column({ type: "enum", enum: ProjectType })
@@ -50,6 +50,9 @@ export class Project extends BaseEntity {
 
   @Column("json", { default: "{}" })
   public env: { [key: string]: string };
+
+  @Column()
+  public accessToken: string;
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()
