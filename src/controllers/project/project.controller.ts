@@ -45,7 +45,7 @@ export class ProjectController {
 
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
-    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink }, relations: ["creator"] });
+    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() }, relations: ["creator"] });
     if (project && project.creator.id !== user.id)
       throw new BadRequestException("This repository has already been registered");
     else if (project?.creator?.id === user.id)
@@ -53,6 +53,7 @@ export class ProjectController {
     return await Project.create({
       creator: user,
       ...projectReq,
+      githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
