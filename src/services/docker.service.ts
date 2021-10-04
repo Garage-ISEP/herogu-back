@@ -41,7 +41,10 @@ export class DockerService implements OnModuleInit {
   }
 
   public async removeContainerFromName(name: string) {
-    const containerId = await this._getContainerIdFromName(name);
+    let containerId: string;
+    try {
+      containerId = await this._getContainerIdFromName(name);
+    } catch (e) { }
     if (containerId)
       await this._removeContainer(containerId);
   }
@@ -81,19 +84,19 @@ export class DockerService implements OnModuleInit {
   public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
     const labels = this._getLabels(config.name, config.url, config.email);
     try {
-      (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url));
+      (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url, { authconfig: config }));
     } catch (e) {
       this._logger.error("Impossible to get image from url :", config.url);
       this._logger.error("Image doesn't exists, impossible to continue, incident will be reported");
-      this._mail.sendErrorMail(this, "Error pulling image : ", e);
+      // this._mail.sendErrorMail(this, "Error pulling image : ", e);
       throw new DockerImageNotFoundException();
     }
     try {
-      await this.removeContainerFromName("yolo");
+      await this.removeContainerFromName(config.name);
     } catch (e) {
       this._logger.info("Error removing container " + config.name);
       this._logger.info("Cannot continue container creation, incident will be reported");
-      this._mail.sendErrorMail(this, "Error removing container : ", e);
+      // this._mail.sendErrorMail(this, "Error removing container : ", e);
       return;
     }
 
@@ -103,7 +106,7 @@ export class DockerService implements OnModuleInit {
         this._logger.log("Trying to create container :", config.name, "- iteration :", i);
         const container = await this._docker.createContainer({
           Image: config.url,
-          name: "yolo",
+          name: config.name,
           Tty: true,
           Labels: labels as any,
           ExposedPorts: {
@@ -221,8 +224,8 @@ export class DockerService implements OnModuleInit {
     const id = await this._getContainerIdFromName(name);
     const observable = new Observable<[ContainerStatus, number]>(observer => {
       this._statusListeners.set(id, observer);
+      this._checkStatusEvents(id);
     });
-    await this._checkStatusEvents(id);
     return observable;
   }
   public async checkMysqlConnection(dbName: string, username: string, password: string): Promise<boolean> {
@@ -263,7 +266,7 @@ export class DockerService implements OnModuleInit {
         const data: EventResponse = JSON.parse(rawData);
         if (data.Type == "container" &&
           allowedActions.includes(data.Action as keyof typeof ContainerEvents) &&
-          Object.keys(this._statusListeners).includes(data.Actor.ID)) {
+          this._statusListeners.has(data.Actor.ID)) {
           try {
             this._checkStatusEvents(data.Actor.ID);
           } catch (e) {

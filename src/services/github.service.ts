@@ -1,15 +1,12 @@
 import { ProjectType } from './../database/project.entity';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, HttpService } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { readFile } from "fs/promises";
 import * as yaml from "yaml";
 import * as fs from "fs/promises";
 import { AppLogger } from 'src/utils/app-logger.util';
 import * as sodium from "tweetsodium";
-import { interval, Observable } from 'rxjs';
-import { map } from "rxjs/operators";
-import { WorkflowRunStatus, GetContentResponse } from 'src/models/github.model';
-import e from 'express';
+import { GetContentResponse } from 'src/models/github.model';
 @Injectable()
 export class GithubService implements OnModuleInit {
   
@@ -17,6 +14,7 @@ export class GithubService implements OnModuleInit {
 
   constructor(
     private readonly _logger: AppLogger,
+    private readonly _http: HttpService,
   ) { }
 
   public async onModuleInit() {
@@ -68,6 +66,17 @@ export class GithubService implements OnModuleInit {
     const [owner, repo] = url.split("/").slice(-2);
     try {
       return !!await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  public async verifyImage(url: string, repoId: number) {
+    const [owner, repo] = url.split("/").slice(-2);
+    try {
+      const octokit = await this._client.getInstallationOctokit(repoId);
+      await octokit.rest.packages.getPackageForUser({ username: owner, package_name: repo, package_type: "container" });
+      return true;
     } catch (e) {
       return false;
     }

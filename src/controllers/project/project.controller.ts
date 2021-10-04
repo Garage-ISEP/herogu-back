@@ -56,6 +56,7 @@ export class ProjectController {
     return await Project.create({
       creator: user,
       ...projectReq,
+      name: projectReq.name.toLowerCase(),
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
@@ -87,8 +88,17 @@ export class ProjectController {
   @Post('/:id/docker-link')
   public async linkToDocker(@CurrentProject() project: Project) {
     try {
+      const [owner, repo] = project.githubLink.split("/").slice(-2);
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "docker"));
-      await this._docker.launchContainerFromConfig({ url: project.githubLink, email: project.creator.mail, name: project.name, env: project.env });
+      await this._docker.launchContainerFromConfig({
+        url: `ghcr.io/${owner}/${repo}:latest`,
+        email: project.creator.mail,
+        name: project.name,
+        env: project.env,
+        password: project.accessToken,
+        serveraddress: 'ghcr.io',
+        username: owner
+      });
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
     } catch (e) {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "docker"));
@@ -111,7 +121,7 @@ export class ProjectController {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
       throw new InternalServerErrorException(e.message);
     }
-    await project.save();
+    return await project.save();
   }
 
   @Sse('/:id/status')
@@ -123,13 +133,16 @@ export class ProjectController {
         .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
 
       this._docker.listenContainerStatus(project.name)
-        .then(status => subscriber.next(new ProjectStatusResponse(status[0], "container", status[1])))
+        .then(statusObs => statusObs.subscribe({
+          next: status => subscriber.next(new ProjectStatusResponse(status[0], "docker", status[1]))
+        }))
         .catch(e => {
-          subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "container"))
+          console.error(e);
+          subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
           this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
         });
-
-      subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS));
+      this._github.verifyImage(project.githubLink, project.repoId)
+        .then(el => subscriber.next(new ProjectStatusResponse(el ? ProjectStatus.SUCCESS : ProjectStatus.ERROR, "image")));
     }).pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
       finalize(() => this._projectWatchObservables.delete(project.id))

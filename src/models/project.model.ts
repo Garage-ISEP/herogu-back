@@ -3,7 +3,7 @@ import { ContainerStatus } from "./docker/docker-container.model";
 export class ProjectStatusResponse {
   constructor(
     public status: ProjectStatus | ContainerStatus,
-    public origin?: Origin,
+    public origin: Origin,
     public exitCode?: number,
   ) { }
 }
@@ -12,4 +12,4 @@ export enum ProjectStatus {
   IN_PROGRESS = "IN_PROGRESS",
   SUCCESS = "SUCCESS",
 }
-export type Origin = "docker" | "container" | "mysql" | "github";
+export type Origin = "docker" | "mysql" | "github" | "image";
