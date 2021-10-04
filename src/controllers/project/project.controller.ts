@@ -1,7 +1,5 @@
 import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
-import { from } from 'form-data';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
 import { User } from 'src/database/user.entity';
@@ -12,8 +10,8 @@ import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto, MysqlLinkDto } from './project.dto';
-import { MessageEvent } from "src/models/sse.model";
 import { wait } from 'src/utils/timer.util';
+import { ProjectStatus, ProjectStatusResponse } from 'src/models/project.model';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -98,5 +96,10 @@ export class ProjectController {
       throw e;
     }
     await project.save();
+  }
+
+  @Sse('/:id/status')
+  public getStatus(@Param('id') id: string) {
+    return new Observable(subscriber => subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS)))
   }
 }

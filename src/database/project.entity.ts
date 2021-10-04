@@ -1,6 +1,6 @@
 import { Collaborator } from './collaborator.entity';
 import { User } from './user.entity';
-import { Column, CreateDateColumn, JoinColumn, ManyToOne, OneToMany, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, JoinColumn, ManyToOne, OneToMany, RelationId, UpdateDateColumn } from 'typeorm';
 import { Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { BaseEntity } from 'typeorm';
 
@@ -57,6 +57,9 @@ export class Project extends BaseEntity {
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()
   public creator: User;
+
+  @RelationId((project: Project) => project.creator)
+  public creatorId: string;
 
   @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"] })
   public collaborators: Collaborator[];

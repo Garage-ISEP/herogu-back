@@ -26,6 +26,13 @@ export class DockerService implements OnModuleInit {
       await this._docker.ping();
       await this._getMysqlContainerInfo();
       await this._listenStatusEvents();
+      // await this.launchContainerFromConfig({
+      //   email: "theodore.prevot@eleve.isep.fr",
+      //   url: "ghcr.io/totodore/herogu-test-php:latest",
+      //   name: "ghcr.io/totodore/herogu-test-php:latest",
+      //   env: {}
+      // });
+      // await this.createMysqlDBWithUser("heruaa", "CREATE TABLE Yolo (Test VARCHAR(255));");
       this._logger.log("Docker connection OK");
     } catch (e) {
       this._logger.log("Impossible to reach docker sock");
@@ -96,7 +103,7 @@ export class DockerService implements OnModuleInit {
         this._logger.log("Trying to create container :", config.name, "- iteration :", i);
         const container = await this._docker.createContainer({
           Image: config.url,
-          name: config.name,
+          name: "yolo",
           Tty: true,
           Labels: labels as any,
           ExposedPorts: {
@@ -135,13 +142,13 @@ export class DockerService implements OnModuleInit {
       await new UniqueID().asyncGetUniqueID() as string
     );
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.username}' IDENTIFIED BY '${creds.password}'`);
-      await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}'`);
-      await this._mysqlQuery("FLUSH PRIVILEGES");
-      await this._mysqlQuery("CREATE TABLE Bienvenue (Message varchar(255))", creds.dbName);
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8;`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.username}' IDENTIFIED BY '${creds.password}';`);
+      await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}';`);
+      await this._mysqlQuery("FLUSH PRIVILEGES;");
+      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.dbName);
       if (sql) await this.execSQLFile(sql, creds.dbName, creds.username, creds.password);
-      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`, creds.dbName, creds.username, creds.password);
+      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.dbName, creds.username, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
@@ -153,15 +160,17 @@ export class DockerService implements OnModuleInit {
    * Execute sql commands, for instance from a .sql file
    */
   public async execSQLFile(sql: string, dbName: string, username: string, password: string) {
-    try {
-      if (sql) new Parser().parse(sql);      
-    } catch (e) {
-      throw new ProjectCreationException("Error when parsing SQL File", 2);
-    }
+    // try {
+    //   if (sql) new Parser().parse(sql);      
+    // } catch (e) {
+    //   console.error(e);
+    //   throw new ProjectCreationException("Error when parsing SQL File", 2);
+    // }
     try {
       await this._mysqlQuery(sql, dbName, username, password);
     } catch (e) {
       this._logger.error(e);
+      console.error(e);
       throw new ProjectCreationException("Error while adding sql to db");
     }
   }
