@@ -29,3 +29,9 @@ export class DockerImageNotFoundException extends InternalServerErrorException {
     super({ code: 4 }, "Docker image not found !");
   }
 }
+
+export class DockerContainerNotFoundException extends InternalServerErrorException {
+  constructor(name?: string) {
+    super({ code: 5 }, "Docker container not found with name " + name);
+  }
+}

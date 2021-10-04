@@ -27,7 +27,8 @@ export enum ContainerStatus {
   Running = "Running",
   Error = "Error",
   Stopped = "Stopped",
-  Restarting = "Restarting"
+  Restarting = "Restarting",
+  NotFound = "NotFound"
 }
 
 export enum ContainerEvents {

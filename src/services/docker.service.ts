@@ -1,10 +1,9 @@
-import { DockerImageNotFoundException, NoMysqlContainerException } from './../errors/docker.exception';
+import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { UniqueID } from "nodejs-snowflake";
-import { Parser } from 'node-sql-parser';
 import { dockerLabelsConf } from 'src/config/docker.conf';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
@@ -22,7 +21,7 @@ export class DockerService implements OnModuleInit {
 
   public async onModuleInit() {
     try {
-      this._logger.log("Checking docker connection");
+      this._logger.log("Checking docker connection...");
       await this._docker.ping();
       await this._getMysqlContainerInfo();
       await this._listenStatusEvents();
@@ -32,7 +31,8 @@ export class DockerService implements OnModuleInit {
       //   name: "ghcr.io/totodore/herogu-test-php:latest",
       //   env: {}
       // });
-      // await this.createMysqlDBWithUser("heruaa", "CREATE TABLE Yolo (Test VARCHAR(255));");
+      // const creds = await this.createMysqlDBWithUser("heaijhzddzduaa", "CREATE TABLE Yolo (Test VARCHAR(255));");
+      // console.log(await this.checkMysqlConnection(creds.dbName, creds.username, creds.password));
       this._logger.log("Docker connection OK");
     } catch (e) {
       this._logger.log("Impossible to reach docker sock");
@@ -89,7 +89,7 @@ export class DockerService implements OnModuleInit {
       throw new DockerImageNotFoundException();
     }
     try {
-      await this.removeContainerFromName(config.name);
+      await this.removeContainerFromName("yolo");
     } catch (e) {
       this._logger.info("Error removing container " + config.name);
       this._logger.info("Cannot continue container creation, incident will be reported");
@@ -135,11 +135,11 @@ export class DockerService implements OnModuleInit {
    * Create a mysql db with user
    * An optional sql fileName can be provided to hydrate the db 
    */
-  public async createMysqlDBWithUser(projectName: string, sql?: string): Promise<DbCredentials> {
+  public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
     const creds = new DbCredentials(
-      (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
-      (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
-      await new UniqueID().asyncGetUniqueID() as string
+      dbName || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
+      username || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
+      password || await new UniqueID().asyncGetUniqueID() as string
     );
     try {
       await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8;`);
@@ -147,12 +147,22 @@ export class DockerService implements OnModuleInit {
       await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}';`);
       await this._mysqlQuery("FLUSH PRIVILEGES;");
       await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.dbName);
-      if (sql) await this.execSQLFile(sql, creds.dbName, creds.username, creds.password);
       await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.dbName, creds.username, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
       throw new ProjectCreationException("Error while Creating DB With USER");
+    }
+  }
+
+  public async resetMysqlDB(projectName: string, dbName: string, username: string, password: string) {
+    try {
+      await this._mysqlQuery(`DROP USER IF EXISTS '${username}';`);
+      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${dbName};`);
+      await this.createMysqlDBWithUser(projectName, dbName, username, password);
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectCreationException("Error while resetting DB");
     }
   }
 
@@ -208,19 +218,21 @@ export class DockerService implements OnModuleInit {
    * Throw an error if there is no container with this name
    */
   public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number]>> {
-    let id: string;
-    try {
-      id = await this._getContainerIdFromName(name);
-    } catch (e) {
-      throw new Error("Cannot find container with name " + name);
-    }
+    const id = await this._getContainerIdFromName(name);
     const observable = new Observable<[ContainerStatus, number]>(observer => {
       this._statusListeners.set(id, observer);
     });
-    await this._checkStatusEvents(id).catch((e) => console.error(e));
+    await this._checkStatusEvents(id);
     return observable;
   }
-
+  public async checkMysqlConnection(dbName: string, username: string, password: string): Promise<boolean> {
+    try {
+      await this._mysqlQuery("SELECT 1;", dbName, username, password);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
   /**
    * Execute a SQL query
    * By default it will execute a query with root creds
@@ -286,6 +298,7 @@ export class DockerService implements OnModuleInit {
     } catch (e) {
       this._logger.error(e);
     }
+    throw new DockerContainerNotFoundException("No container found with name " + name);
   }
 
   /**
@@ -350,8 +363,8 @@ export class DockerService implements OnModuleInit {
         if (!stream.readable) return;
         if (chunk.toString().toLowerCase().includes("error"))
           reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-        else if (!chunk.toString().toLocaleLowerCase().includes("warning"))
-          this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk}`);
+        else if (!chunk.toString().toLowerCase().includes("warning"))
+          this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
       })
       .on("end", () => resolve())
       .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));

@@ -15,7 +15,7 @@ export class Project extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   public id: string;
 
-  @Column()
+  @Column({ unique: true })
   public name: string;
 
   @Column({ unique: true })
