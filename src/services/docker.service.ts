@@ -109,6 +109,9 @@ export class DockerService implements OnModuleInit {
           name: config.name,
           Tty: true,
           Labels: labels as any,
+          HostConfig: {
+            RestartPolicy: { Name: "always", MaximumRetryCount: 2 }
+          },
           ExposedPorts: {
             '80': {}
           },
