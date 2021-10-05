@@ -61,7 +61,8 @@ export class Project extends BaseEntity {
   @RelationId((project: Project) => project.creator)
   public creatorId: string;
 
-  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"] })
+  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: true, onDelete: "CASCADE" })
+  @JoinColumn()
   public collaborators: Collaborator[];
 
   @CreateDateColumn()

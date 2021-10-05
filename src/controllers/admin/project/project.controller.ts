@@ -4,7 +4,7 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { Like } from 'typeorm';
 
-@Controller('project')
+@Controller('admin/project')
 @UseGuards(AuthGuard, AdminGuard)
 export class AdminProjectController {
 

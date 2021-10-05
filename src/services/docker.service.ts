@@ -41,13 +41,37 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  public async tryRemoveContainerFromName(name: string) {
+    let containerId: string;
+    try {
+      containerId = await this._getContainerIdFromName(name);
+    } catch (e) { }
+    if (containerId) {
+      try {
+        await this._removeContainer(containerId);
+        return true;
+      } catch (e) { return false; }
+    }
+  }
+
+
   public async removeContainerFromName(name: string) {
     let containerId: string;
     try {
       containerId = await this._getContainerIdFromName(name);
     } catch (e) { }
-    if (containerId)
+    if (containerId) {
       await this._removeContainer(containerId);
+    }
+  }
+
+  public async tryRemoveImageFromLink(link: string) {
+    try {
+      await this._docker.getImage(link).remove();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
@@ -201,16 +225,6 @@ export class DockerService implements OnModuleInit {
     const container = await this._docker.getContainer(id).inspect();
     container.State.Running ? await this._docker.getContainer(id).stop() : await this._docker.getContainer(id).start();
   }
-
-  /**
-   * Start the cotnainer from its tag name
-   * throw a docker error if can't start or get container from name
-   */
-  public async startContainerFromName(name: string) {
-    const id = await this._getContainerIdFromName(name);
-    await this._docker.getContainer(id).start();
-  }
-
   /**
    * Get container info
    * Throw an error if the container doesn't exist

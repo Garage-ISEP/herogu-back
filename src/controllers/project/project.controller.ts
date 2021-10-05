@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
 import { Observable, Observer, of, Subscriber } from 'rxjs';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
@@ -65,6 +65,16 @@ export class ProjectController {
         role: Role.COLLABORATOR
       })), Collaborator.create({ user, role: Role.OWNER })]
     }).save();
+  }
+
+  @Delete('/:id')
+  public async deleteProject(@CurrentProject() project: Project) {
+    const [owner, repo] = project.githubLink.split("/").slice(-2);
+    await this._docker.removeContainerFromName(project.name);
+    await this._docker.tryRemoveImageFromLink(`ghcr.io/${owner}/${repo}:latest`);
+    for (const collab of project.collaborators)
+      await collab.remove();
+    await project.remove();
   }
 
   @Post('/:id/github-link')
