@@ -124,6 +124,11 @@ export class ProjectController {
     return await project.save();
   }
 
+  @Post('/:id/toggle')
+  public async toggleProject(@CurrentProject() project: Project) {
+    this._docker.toggleContainerFromName(project.name);
+  }
+
   @Sse('/:id/status')
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
     return new Observable(subscriber => {

@@ -8,6 +8,7 @@ import { dockerLabelsConf } from 'src/config/docker.conf';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
 import { Observable, Observer } from 'rxjs';
+import { generatePassword } from 'src/utils/string.util';
 @Injectable()
 export class DockerService implements OnModuleInit {
   
@@ -145,7 +146,7 @@ export class DockerService implements OnModuleInit {
     const creds = new DbCredentials(
       dbName || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
       username || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
-      password || await new UniqueID().asyncGetUniqueID() as string
+      password || generatePassword()
     );
     try {
       await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8;`);
@@ -192,12 +193,13 @@ export class DockerService implements OnModuleInit {
   }
 
   /**
-   * Stop the container from its tag name
+   * Start or stop the container from its tag name
    * throw docker error if can't stop or get container from name
    */
-  public async stopContainerFromName(name: string) {
+  public async toggleContainerFromName(name: string) {
     const id = await this._getContainerIdFromName(name);
-    await this._docker.getContainer(id).stop();
+    const container = await this._docker.getContainer(id).inspect();
+    container.State.Running ? await this._docker.getContainer(id).stop() : await this._docker.getContainer(id).start();
   }
 
   /**
@@ -369,7 +371,7 @@ export class DockerService implements OnModuleInit {
         if (!stream.readable) return;
         if (chunk.toString().toLowerCase().includes("error"))
           reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-        else if (!chunk.toString().toLowerCase().includes("warning"))
+        else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
           this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
       })
       .on("end", () => resolve())
