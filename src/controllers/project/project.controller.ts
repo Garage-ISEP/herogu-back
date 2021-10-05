@@ -152,7 +152,7 @@ export class ProjectController {
           next: status => subscriber.next(new ProjectStatusResponse(status[0], "docker", status[1]))
         }))
         .catch(e => {
-          console.error(e);
+          // console.error(e);
           subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
           this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
         });

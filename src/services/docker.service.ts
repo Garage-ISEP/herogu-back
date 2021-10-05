@@ -135,7 +135,10 @@ export class DockerService implements OnModuleInit {
           Tty: true,
           Labels: labels as any,
           HostConfig: {
-            RestartPolicy: { Name: "always", MaximumRetryCount: 2 }
+            RestartPolicy: { Name: "always" },
+            PortBindings: {
+              "80/tcp": [{ HostPort: "8080" }],
+            }
           },
           ExposedPorts: {
             '80': {}
@@ -278,7 +281,7 @@ export class DockerService implements OnModuleInit {
       "restart",
       "start",
       "stop",
-      "update",
+      "update"
     ];
     try {
       (await this._docker.getEvents()).on("data", async (rawData) => {
@@ -299,9 +302,16 @@ export class DockerService implements OnModuleInit {
   }
 
   private async _checkStatusEvents(containerId: string) {
-    const state = (await this._docker.getContainer(containerId).inspect()).State;
+    let state: Dockerode.ContainerInspectInfo["State"];
     const handler = this._statusListeners.get(containerId);
-
+    try {
+      state = (await this._docker.getContainer(containerId).inspect()).State;
+    } catch (e) {
+      handler.next([ContainerStatus.NotFound]);
+      handler.complete();
+      console.log("handler completed");
+      this._statusListeners.delete(containerId);
+    }
     if (state.Restarting) handler.next([ContainerStatus.Restarting]);
     else if (state.Running) handler.next([ContainerStatus.Running]);
     else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
@@ -345,6 +355,7 @@ export class DockerService implements OnModuleInit {
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
       [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
+      [`traefik.http.routers.${name}.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}.entrypoint`]: "web",
       [`traefik.http.routers.${name}.middlewares`]: "redirect",
       ...dockerLabelsConf,
