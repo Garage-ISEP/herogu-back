@@ -81,6 +81,14 @@ export class GithubService implements OnModuleInit {
       return false;
     }
   }
+
+  public async isLastImage(githubId: number, url: string) {
+    const [owner, repo, name] = url.split(":")[0].split("/").slice(-3);
+    const repoId = await this.getRepoId(url);
+    const octokit = await this._client.getInstallationOctokit(repoId);
+    const image = await octokit.rest.packages.getPackageForUser({ package_name: name, package_type: "container", username: owner });
+    return image.data.id == githubId;
+  }
   /**
    * Verify the configuration from the different shas
    */

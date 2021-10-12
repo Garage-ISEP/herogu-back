@@ -9,6 +9,7 @@ import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
 import { Observable, Observer } from 'rxjs';
 import { generatePassword } from 'src/utils/string.util';
+import { GithubService } from './github.service';
 @Injectable()
 export class DockerService implements OnModuleInit {
   
@@ -18,6 +19,7 @@ export class DockerService implements OnModuleInit {
   constructor(
     private readonly _logger: AppLogger,
     private readonly _mail: MailerService,
+    private readonly _github: GithubService,
   ) { }
 
   public async onModuleInit() {
@@ -107,7 +109,7 @@ export class DockerService implements OnModuleInit {
    * In case of failure, it retries 3 times
    */
   public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    const labels = this._getLabels(config.name, config.url, config.email);
+    const labels = await this._getLabels(config.name, config.url, config.email, config.password);
     try {
       (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url, { authconfig: config }));
     } catch (e) {
@@ -163,6 +165,65 @@ export class DockerService implements OnModuleInit {
     }
     this._logger.log("Container not created or started after 3 times, incident will be reported.");
     this._mail.sendErrorMail(this, "Error starting new container : ", error);
+  }
+
+  
+  /**
+   * Recreate a container from its ID
+   * @param containerId 
+   */
+   public async recreateContainer(containerId: string, image: string) {
+    try {
+      let oldContainer: Container = this._docker.getContainer(containerId);
+      const oldContainerInfo = await oldContainer.inspect();
+
+      this._logger.log("Stopping container");
+      await oldContainer.stop().catch();
+
+      this._logger.log("Removing container");
+      await oldContainer.remove({ force: true });
+      // this._logger.log("Available images for this container : ", (await this._docker.listImages()));
+      this._logger.log("Recreating container with image :", oldContainerInfo.Config.Labels["docker-ci.repo-url"]);
+      
+      await new Promise<void>((resolve, reject) => {
+        setTimeout(async () => {
+          try {
+            const container = await this._docker.createContainer({
+              ...oldContainerInfo.Config,
+              name: oldContainerInfo.Name,
+              Image: oldContainerInfo.Config.Labels["docker-ci.repo-url"],
+              NetworkingConfig: {
+                EndpointsConfig: oldContainerInfo.NetworkSettings.Networks,
+              },
+              HostConfig: {
+                Binds: oldContainerInfo.Mounts.map(el => `${el.Name}:${el.Destination}:${el.Mode}`)  //Binding volumes mountpoints in case of named volumes
+              },
+            });
+            container.start();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        }, 3000);
+      });
+      this._logger.info(`Container ${oldContainerInfo.Name} recreated and updated !`);
+    } catch (e) {
+      this._logger.error("Error recreating container :", e);
+      throw new Error("Error recreating container : \n" + e);
+    }
+  }
+
+  public async pullImage(image: string, config: ContainerConfig) {
+    try {
+      await this._docker.pull(image, { authconfig: config });
+    } catch (e) {
+      this._logger.error("Impossible to get image from url :", image);
+      throw new DockerImageNotFoundException();
+    }
+  }
+
+  public async pruneImages() {
+    await this._docker.pruneImages();
   }
 
   /**
@@ -312,10 +373,14 @@ export class DockerService implements OnModuleInit {
       console.log("handler completed");
       this._statusListeners.delete(containerId);
     }
-    if (state.Restarting) handler.next([ContainerStatus.Restarting]);
-    else if (state.Running) handler.next([ContainerStatus.Running]);
-    else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
-    else if (!state.Running) handler.next([ContainerStatus.Stopped, state.ExitCode]);
+    if (!state)
+      handler.next([ContainerStatus.NotFound]);
+    else {
+      if (state.Restarting) handler.next([ContainerStatus.Restarting]);
+      else if (state.Running) handler.next([ContainerStatus.Running]);
+      else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
+      else if (!state.Running) handler.next([ContainerStatus.Stopped, state.ExitCode]);
+    }
   }
 
   /**
@@ -347,11 +412,16 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  private _getLabels(name: string, url: string, email: string): ContainerLabels {
+  private async _getLabels(name: string, url: string, email: string, password: string): Promise<ContainerLabels> {
+    const [owner, repo] = url.split("/").slice(-2);
+    const repoId = await this._github.getRepoId(url);
     return {
       "docker-ci.name": name,
       "docker-ci.repo-url": url,
       "docker-ci.email": email,
+      "docker-ci.username": owner,
+      "docker-ci.password": password,
+      "docker-ci-repoId": repoId.toString(),
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
       [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
