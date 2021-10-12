@@ -40,7 +40,7 @@ export class CiService {
       if (this._github.isLastImage(+labels['docker-ci-repoId'], labels['docker-ci.repo-url'])) {
         await this._docker.pullImage(containerInfos.Image, { username: labels['docker-ci.username'], password: labels['docker-ci.password'], serveraddress: "ghcr.io", url: containerInfos.Image, name, email: labels["docker-ci.email"], env: {} });
 
-        await this._docker.recreateContainer(containerInfos.Id, containerInfos.Image);
+        await this._docker.recreateContainer(containerInfos.Id);
       }
       else
         this._logger.info("Image already updated, no container restart needed");

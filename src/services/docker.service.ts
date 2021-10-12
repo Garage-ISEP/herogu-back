@@ -172,7 +172,7 @@ export class DockerService implements OnModuleInit {
    * Recreate a container from its ID
    * @param containerId 
    */
-   public async recreateContainer(containerId: string, image: string) {
+   public async recreateContainer(containerId: string) {
     try {
       let oldContainer: Container = this._docker.getContainer(containerId);
       const oldContainerInfo = await oldContainer.inspect();
