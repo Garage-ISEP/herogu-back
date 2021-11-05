@@ -11,7 +11,6 @@ import { GithubService } from './services/github.service';
 import { AdminUserController } from './controllers/admin/user/user.controller';
 import { AdminProjectController } from './controllers/admin/project/project.controller';
 import { SsoService } from './services/sso.service';
-import { CiService } from './services/ci.service';
 import { ExternalController } from './controllers/external/external.controller';
 
 @Module({
@@ -37,6 +36,6 @@ import { ExternalController } from './controllers/external/external.controller';
     }),
   ],
   controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ExternalController],
-  providers: [MailerService, DockerService, GithubService, SsoService, CiService],
+  providers: [MailerService, DockerService, GithubService, SsoService],
 })
 export class AppModule {}
