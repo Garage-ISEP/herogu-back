@@ -1,3 +1,0 @@
-FROM garageisep/herogu
-
-COPY . /var/www/html

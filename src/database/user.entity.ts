@@ -1,7 +1,6 @@
 import { Project } from './project.entity';
 import { Collaborator } from './collaborator.entity';
-import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-import { Role } from "./role.entity";
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity()
 export class User extends BaseEntity {
@@ -18,25 +17,18 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   public mail: string;
 
-  @Column({ unique: true, type: "varchar", length: 6 })
+  @Column({ unique: true, type: "varchar", length: 9 })
   public studentId: string;
 
-  @Column()
-  public hashPassword: string;
+  @Column({ default: false })
+  public admin: boolean;
 
-  @Column("boolean")
-  public verified: boolean;
-
-  @Column()
-  public lastVerifiedMail: Date;
-
-  @ManyToOne(() => Role)
-  @JoinColumn()
-  public role: Role;
-
-  @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: true })
+  @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: ["update"] })
   public collaborators: Collaborator[];
 
-  @OneToMany(() => Project, project => project.creator, { cascade: true })
-  public createdProjects: Project[];
+  @CreateDateColumn()
+  public createdDate: Date;
+
+  @UpdateDateColumn()
+  public updatedDate: Date;
 }

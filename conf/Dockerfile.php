@@ -7,8 +7,11 @@ RUN docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring mysqli exif && dock
 RUN a2enmod rewrite
 RUN a2disconf serve-cgi-bin
 
-COPY php.ini /etc/php/php.ini
+RUN service apache2 restart
 
-LABEL ORIGIN="garage"
+COPY ./docker/php.ini /etc/php/php.ini
+COPY . /var/www/html
+
+LABEL ORIGIN herogu.garageisep.com
 
 EXPOSE 80

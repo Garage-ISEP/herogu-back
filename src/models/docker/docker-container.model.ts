@@ -1,4 +1,4 @@
-export interface ContainerConfig {
+export interface ContainerConfig extends PullConfig {
   name: string;
   url: string;
   email: string;
@@ -10,6 +10,13 @@ export interface ContainerLabels {
   "docker-ci.name": string,
   "docker-ci.repo-url": string,
   "docker-ci.email": string;
+  
+  "docker-ci.password"?: string;
+  "docker-ci.username"?: string;
+  "docker-ci.auth-server"?: string;
+  
+  "docker-ci-repoId": string;
+
   "traefik.enable": string,
   "traefik.http.middlewares.redirect.redirectscheme.scheme": string,
 }
@@ -27,7 +34,8 @@ export enum ContainerStatus {
   Running = "Running",
   Error = "Error",
   Stopped = "Stopped",
-  Restarting = "Restarting"
+  Restarting = "Restarting",
+  NotFound = "NotFound"
 }
 
 export enum ContainerEvents {
@@ -90,3 +98,10 @@ export class DbCredentials {
     public password: string
   ) {}
 }
+export type PullConfig = {
+  username: string,
+  password: string,
+  auth?: string,
+  email?: string,
+  serveraddress: string
+};
