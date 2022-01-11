@@ -13,7 +13,7 @@ import { GithubService } from './github.service';
 @Injectable()
 export class DockerService implements OnModuleInit {
   
-  private readonly _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
+  private readonly _docker = new Dockerode({ socketPath: process.env.DOCKER_HOST });
   private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
 
   constructor(
