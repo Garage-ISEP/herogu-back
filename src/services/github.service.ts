@@ -136,12 +136,12 @@ export class GithubService implements OnModuleInit {
    * @returns The shas of the files added
    */
   private async _addFiles(octokit: Octokit, owner: string, repo: string, type: ProjectType): Promise<string[]> {
-    const doc = yaml.parse((await fs.readFile("./conf/herogu-ci.yml")).toString());
+    const doc = yaml.parse((await fs.readFile("./config/herogu-ci.yml")).toString());
     doc.env.IMAGE_NAME = repo;
 
-    let dockerfile = (await fs.readFile(`./conf/Dockerfile.${type.toLowerCase()}`)).toString();
+    let dockerfile = (await fs.readFile(`./config/Dockerfile.${type.toLowerCase()}`)).toString();
     dockerfile += `\nLABEL org.opencontainers.image.source https://github.com/${owner}/${repo}`;
-    const config = (await fs.readFile(`./conf/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`)).toString("base64");
+    const config = (await fs.readFile(`./config/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`)).toString("base64");
     const previousShas = await this._getFilesShas(octokit, owner, repo);
     try {
       const res = await Promise.all([
