@@ -232,8 +232,8 @@ export class DockerService implements OnModuleInit {
    */
   public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
     const creds = new DbCredentials(
-      dbName || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
-      username || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
+      dbName || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "_" + projectName.substring(0, 64),
+      username || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "_" + projectName.substring(0, 10),
       password || generatePassword()
     );
     try {
