@@ -1,12 +1,15 @@
 import { ProjectType } from './../database/project.entity';
 import { Injectable, OnModuleInit, HttpService } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
+import { PushEvent } from "@octokit/webhooks-types";
 import { readFile } from "fs/promises";
 import * as yaml from "yaml";
 import * as fs from "fs/promises";
 import { AppLogger } from 'src/utils/app-logger.util';
 import * as sodium from "tweetsodium";
 import { GetContentResponse } from 'src/models/github.model';
+import { Webhooks, createNodeMiddleware } from '@octokit/webhooks';
+import { HttpAdapterHost } from '@nestjs/core';
 @Injectable()
 export class GithubService implements OnModuleInit {
   
@@ -14,7 +17,7 @@ export class GithubService implements OnModuleInit {
 
   constructor(
     private readonly _logger: AppLogger,
-    private readonly _http: HttpService,
+    private readonly adapterHost: HttpAdapterHost
   ) { }
 
   public async onModuleInit() {
@@ -28,6 +31,19 @@ export class GithubService implements OnModuleInit {
       this._logger.log("Github App connection OK");
     } catch (e) {
       this._logger.error("Github App connection failed", e);
+    }
+    this.initWebhooks();
+  }
+
+  private initWebhooks() {
+    try {
+      this._logger.log("Initializing Github webhooks...");
+      const webhooks = new Webhooks({ secret: process.env.GITHUB_WEBHOOK_SECRET });
+      this.adapterHost.httpAdapter.use(createNodeMiddleware(webhooks, { path: "/github/event", log: this._logger }));
+      this._logger.log("Github webhooks initialized");
+      webhooks.on("push", e => this.onGithubPush(e.payload));
+    } catch (e) {
+      this._logger.error("Github webhooks initialization failed", e);
     }
   }
   
@@ -89,6 +105,14 @@ export class GithubService implements OnModuleInit {
     const image = await octokit.rest.packages.getPackageForUser({ package_name: name, package_type: "container", username: owner });
     return image.data.id == githubId;
   }
+
+  public async getInstallationToken(url: string): Promise<string> {
+    const [owner, repo] = url.split("/").slice(-2);
+    const installationInfo = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    const octokit = await this._client.getInstallationOctokit(installationInfo.data.id);
+    const data = await octokit.request(`POST https://api.github.com/app/installations/${installationInfo.data.id}/access_tokens`)
+    return data.data;
+  }
   /**
    * Verify the configuration from the different shas
    */
@@ -145,14 +169,14 @@ export class GithubService implements OnModuleInit {
     const previousShas = await this._getFilesShas(octokit, owner, repo);
     try {
       const res = await Promise.all([
-        octokit.rest.repos.createOrUpdateFileContents({
-          path: ".github/workflows/herogu-ci.yml",
-          message: "Adding Herogu continuous integration configuration",
-          owner,
-          sha: previousShas.get(".github/workflows/herogu-ci.yml"),
-          repo,
-          content: Buffer.from(yaml.stringify(doc)).toString("base64"),
-        }),
+        // octokit.rest.repos.createOrUpdateFileContents({
+        //   path: ".github/workflows/herogu-ci.yml",
+        //   message: "Adding Herogu continuous integration configuration",
+        //   owner,
+        //   sha: previousShas.get(".github/workflows/herogu-ci.yml"),
+        //   repo,
+        //   content: Buffer.from(yaml.stringify(doc)).toString("base64"),
+        // }),
         octokit.rest.repos.createOrUpdateFileContents({
           path: "docker/Dockerfile",
           message: "Adding Herogu deployment and containerisation configuration",
@@ -215,6 +239,20 @@ export class GithubService implements OnModuleInit {
     } catch (e) {
       console.error(e);
       throw new Error("Error adding configuration");
+    }
+  }
+
+  public async onGithubPush(event: PushEvent) {
+    this._logger.log(`Received push event from ${event.repository.full_name}#${event.ref}`);
+    //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
+    if (event.ref.match(/(?<=heads\/)[a-zA-Z0-9._-]+$/i)?.[0] !== event.repository.default_branch)
+      return;
+    //TODO: Check configuration file SHA
+    try {
+      const token = await this.getInstallationToken(event.repository.url);
+      //TODO: Ping le hook de herogu-ci avec le token
+    } catch (e) {
+      this._logger.error("Could not get repository access token", e);
     }
   }
 }

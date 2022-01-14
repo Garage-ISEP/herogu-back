@@ -416,12 +416,11 @@ export class DockerService implements OnModuleInit {
     const [owner, repo] = url.split("/").slice(-2);
     const repoId = await this._github.getRepoId(url);
     return {
+      "docker-ci.enable": true,
       "docker-ci.name": name,
-      "docker-ci.repo-url": url,
+      "docker-ci.repo": url,
       "docker-ci.email": email,
-      "docker-ci.username": owner,
-      "docker-ci.password": password,
-      "docker-ci-repoId": repoId.toString(),
+      "docker-ci.dockerfile": "docker/Dockerfile",
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
       [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
