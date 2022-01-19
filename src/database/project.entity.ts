@@ -36,8 +36,8 @@ export class Project extends BaseEntity {
   @Column({ nullable: true})
   public mysqlPassword: string;
 
-  @Column({ nullable: true})
-  public mysqlDatabase: string;
+  @Column()
+  public uniqueName: string;
 
   @Column()
   public mysqlEnabled: boolean;
@@ -50,9 +50,6 @@ export class Project extends BaseEntity {
 
   @Column("json", { default: "{}" })
   public env: { [key: string]: string };
-
-  @Column()
-  public accessToken: string;
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()

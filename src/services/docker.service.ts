@@ -1,10 +1,9 @@
-import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException } from './../errors/docker.exception';
+import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { UniqueID } from "nodejs-snowflake";
-import { dockerLabelsConf } from 'src/config/docker.conf';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
 import { Observable, Observer } from 'rxjs';
@@ -12,8 +11,8 @@ import { generatePassword } from 'src/utils/string.util';
 import { GithubService } from './github.service';
 @Injectable()
 export class DockerService implements OnModuleInit {
-  
-  private readonly _docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
+
+  private readonly _docker = new Dockerode({ socketPath: process.env.DOCKER_HOST });
   private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
 
   constructor(
@@ -28,14 +27,6 @@ export class DockerService implements OnModuleInit {
       await this._docker.ping();
       await this._getMysqlContainerInfo();
       await this._listenStatusEvents();
-      // await this.launchContainerFromConfig({
-      //   email: "theodore.prevot@eleve.isep.fr",
-      //   url: "ghcr.io/totodore/herogu-test-php:latest",
-      //   name: "ghcr.io/totodore/herogu-test-php:latest",
-      //   env: {}
-      // });
-      // const creds = await this.createMysqlDBWithUser("heaijhzddzduaa", "CREATE TABLE Yolo (Test VARCHAR(255));");
-      // console.log(await this.checkMysqlConnection(creds.dbName, creds.username, creds.password));
       this._logger.log("Docker connection OK");
     } catch (e) {
       this._logger.log("Impossible to reach docker sock");
@@ -67,9 +58,9 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  public async tryRemoveImageFromLink(link: string) {
+  public async removeImageFromName(name: string) {
     try {
-      await this._docker.getImage(link).remove();
+      await this._docker.getImage(name).remove();
       return true;
     } catch (e) {
       return false;
@@ -109,12 +100,19 @@ export class DockerService implements OnModuleInit {
    * In case of failure, it retries 3 times
    */
   public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    const labels = await this._getLabels(config.name, config.url, config.email, config.password);
+    const labels = await this._getLabels(config.name, config.url, config.email);
     try {
-      (await this._getImageIdFromUrl(config.url)) || (await this._docker.pull(config.url, { authconfig: config }));
+      const repoSha = await this._github.getLastCommitSha(config.url);
+      let imageSha: string;
+      try {
+        imageSha = (await this._docker.getImage(config.url)?.inspect())?.Config?.Labels?.["docker-ci.repo-sha"];
+      } catch (e) { }
+      if (imageSha !== repoSha)
+        await this._buildImageFromRemote(config.url, config.name);
     } catch (e) {
-      this._logger.error("Impossible to get image from url :", config.url);
+      this._logger.error("Impossible to build image from url :", config.url);
       this._logger.error("Image doesn't exists, impossible to continue, incident will be reported");
+      this._logger.error(e);
       // this._mail.sendErrorMail(this, "Error pulling image : ", e);
       throw new DockerImageNotFoundException();
     }
@@ -132,14 +130,14 @@ export class DockerService implements OnModuleInit {
       try {
         this._logger.log("Trying to create container :", config.name, "- iteration :", i);
         const container = await this._docker.createContainer({
-          Image: config.url,
+          Image: config.name,
           name: config.name,
           Tty: true,
           Labels: labels as any,
           HostConfig: {
             RestartPolicy: { Name: "always" },
             PortBindings: {
-              "80/tcp": [{ HostPort: "8080" }],
+              "3000/tcp": [{ HostPort: "8080" }],
             }
           },
           ExposedPorts: {
@@ -167,12 +165,12 @@ export class DockerService implements OnModuleInit {
     this._mail.sendErrorMail(this, "Error starting new container : ", error);
   }
 
-  
+
   /**
    * Recreate a container from its ID
    * @param containerId 
    */
-   public async recreateContainer(containerId: string) {
+  public async recreateContainer(containerId: string) {
     try {
       let oldContainer: Container = this._docker.getContainer(containerId);
       const oldContainerInfo = await oldContainer.inspect();
@@ -183,29 +181,20 @@ export class DockerService implements OnModuleInit {
       this._logger.log("Removing container");
       await oldContainer.remove({ force: true });
       // this._logger.log("Available images for this container : ", (await this._docker.listImages()));
-      this._logger.log("Recreating container with image :", oldContainerInfo.Config.Labels["docker-ci.repo-url"]);
-      
-      await new Promise<void>((resolve, reject) => {
-        setTimeout(async () => {
-          try {
-            const container = await this._docker.createContainer({
-              ...oldContainerInfo.Config,
-              name: oldContainerInfo.Name,
-              Image: oldContainerInfo.Config.Labels["docker-ci.repo-url"],
-              NetworkingConfig: {
-                EndpointsConfig: oldContainerInfo.NetworkSettings.Networks,
-              },
-              HostConfig: {
-                Binds: oldContainerInfo.Mounts.map(el => `${el.Name}:${el.Destination}:${el.Mode}`)  //Binding volumes mountpoints in case of named volumes
-              },
-            });
-            container.start();
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        }, 3000);
+      this._logger.log("Recreating container with image :", oldContainerInfo.Name);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const container = await this._docker.createContainer({
+        ...oldContainerInfo.Config,
+        name: oldContainerInfo.Name,
+        Image: oldContainerInfo.Name,
+        NetworkingConfig: {
+          EndpointsConfig: oldContainerInfo.NetworkSettings.Networks,
+        },
+        HostConfig: {
+          Binds: oldContainerInfo.Mounts.map(el => `${el.Name}:${el.Destination}:${el.Mode}`)  //Binding volumes mountpoints in case of named volumes
+        },
       });
+      container.start();
       this._logger.info(`Container ${oldContainerInfo.Name} recreated and updated !`);
     } catch (e) {
       this._logger.error("Error recreating container :", e);
@@ -232,8 +221,8 @@ export class DockerService implements OnModuleInit {
    */
   public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
     const creds = new DbCredentials(
-      dbName || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 64),
-      username || (await new UniqueID().asyncGetUniqueID() as string).substr(0, 6) + "_" + projectName.substr(0, 10),
+      dbName || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "_" + projectName.substring(0, 10),
+      username || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "_" + projectName.substring(0, 10),
       password || generatePassword()
     );
     try {
@@ -319,16 +308,23 @@ export class DockerService implements OnModuleInit {
       return false;
     }
   }
+
+  public async imageExists(name: string): Promise<boolean> {
+    try {
+      await this._docker.getImage(name).inspect();
+      return true;
+    } catch (e) { return false; }
+  }
   /**
    * Execute a SQL query
    * By default it will execute a query with root creds
    * If specified it will execute a query with the given credentials and database name
    */
-  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_ROOT_PASSWORD) {
+  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
   }
 
-  
+
   /**
    * Listen all docker container event,
    * If a container listener is added then the handler for this listener is triggerred
@@ -398,37 +394,48 @@ export class DockerService implements OnModuleInit {
     throw new DockerContainerNotFoundException("No container found with name " + name);
   }
 
-  /**
-   * Get a local image id from its url
-   * @param url
-   */
-  private async _getImageIdFromUrl(url: string): Promise<string | undefined> {
+  private async _buildImageFromRemote(url: string, tag: string): Promise<void> {
     try {
-      for (const el of await this._docker.listImages({ all: true })) {
-        if (el.RepoTags.includes(url)) return el.Id;
-      }
+      const token = await this._github.getInstallationToken(url);
+      const mainBranch = await this._github.getMainBranch(url);
+      const [owner, repo] = url.split("/").slice(-2);
+      const lastCommitSha = await this._github.getLastCommitSha(url);
+      url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
+      await this._docker.buildImage({ context: ".", src: [] }, {
+        t: tag,
+        rm: true,
+        forcerm: true,
+        remote: url,
+        dockerfile: "docker/Dockerfile",
+        labels: {
+          "docker-ci.repo-sha": lastCommitSha,
+          "docker-ci.repo-url": url,
+        }
+      });
+
     } catch (e) {
-      this._logger.error(e);
+      console.error(e);
+      throw new DockerImageBuildException(e, url);
     }
   }
 
-  private async _getLabels(name: string, url: string, email: string, password: string): Promise<ContainerLabels> {
+  private async _getLabels(name: string, url: string, email: string): Promise<ContainerLabels> {
     const [owner, repo] = url.split("/").slice(-2);
-    const repoId = await this._github.getRepoId(url);
+    const mainBranch = await this._github.getMainBranch(url);
     return {
+      "docker-ci.enable": "true",
       "docker-ci.name": name,
-      "docker-ci.repo-url": url,
+      "docker-ci.repo": `https://x-access-token:{{TOKEN}}@github.com/${owner}/${repo}.git#${mainBranch}`,
       "docker-ci.email": email,
-      "docker-ci.username": owner,
-      "docker-ci.password": password,
-      "docker-ci-repoId": repoId.toString(),
+      "docker-ci.dockerfile": "docker/Dockerfile",
+      "traefik.enable": 'true',
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
       [`traefik.http.routers.${name}-secure.certresolver`]: "myhttpchallenge",
       [`traefik.http.routers.${name}.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}.entrypoint`]: "web",
       [`traefik.http.routers.${name}.middlewares`]: "redirect",
-      ...dockerLabelsConf,
+      "traefik.http.middlewares.redirect.redirectscheme.scheme": "https",
     };
   }
 
@@ -469,8 +476,8 @@ export class DockerService implements OnModuleInit {
         else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
           this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
       })
-      .on("end", () => resolve())
-      .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
+        .on("end", () => resolve())
+        .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
     });
   }
 

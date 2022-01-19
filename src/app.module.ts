@@ -11,7 +11,6 @@ import { GithubService } from './services/github.service';
 import { AdminUserController } from './controllers/admin/user/user.controller';
 import { AdminProjectController } from './controllers/admin/project/project.controller';
 import { SsoService } from './services/sso.service';
-import { ExternalController } from './controllers/external/external.controller';
 
 @Module({
   imports: [
@@ -35,7 +34,7 @@ import { ExternalController } from './controllers/external/external.controller';
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ExternalController],
+  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
   providers: [MailerService, DockerService, GithubService, SsoService],
 })
 export class AppModule {}

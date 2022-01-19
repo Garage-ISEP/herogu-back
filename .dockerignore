@@ -1,4 +1,4 @@
-conf/**
+config/**
 node_modules/**
 docker/**
 *.env

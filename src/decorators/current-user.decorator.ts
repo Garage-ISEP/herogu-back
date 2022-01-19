@@ -6,7 +6,7 @@ export const CurrentUser = createParamDecorator(async (data: void, ctx: Executio
   const request = ctx.switchToHttp().getRequest() || ctx.switchToWs().getClient().req;
   return request.meta?.user || await User.findOne({
     where: {
-      studentId: jwt.decode((request.headers?.authorization || request.query?.authorization).substr(7))
+      studentId: jwt.decode((request.headers?.authorization || request.query?.authorization).substring(7))
     },
     relations: ["collaborators", "collaborators.project"]
   });

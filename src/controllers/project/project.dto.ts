@@ -20,9 +20,6 @@ export class CreateProjectDto {
   @ArrayMaxSize(10)
   public addedUsers: string[];
 
-  @IsString()
-  public accessToken: string;
-
   @IsObject()
   @IsOptional()
   public env: { [key: string]: string } = {};
