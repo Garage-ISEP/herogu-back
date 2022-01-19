@@ -324,7 +324,7 @@ export class DockerService implements OnModuleInit {
    * By default it will execute a query with root creds
    * If specified it will execute a query with the given credentials and database name
    */
-  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_ROOT_PASSWORD) {
+  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
   }
 
