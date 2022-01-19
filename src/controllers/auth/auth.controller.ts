@@ -28,6 +28,8 @@ export class AuthController {
   @Post('login')
   @Recaptcha()
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
+    if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
+      throw new ForbiddenException("You are not allowed to login");
     let user = await User.findOne({ where: { studentId: creds.studentId } });
     const token = await this._sso.login(creds.studentId, creds.password);
     if (!user) {
