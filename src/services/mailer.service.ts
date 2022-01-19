@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { AppLogger } from 'src/utils/app-logger.util';
-import * as mailConf from "../../mail.conf.json";
+const mailConf = require("../../mail.conf.json");
 @Injectable()
 export class MailerService implements OnModuleInit {
   
