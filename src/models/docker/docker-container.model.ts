@@ -1,4 +1,4 @@
-export interface ContainerConfig extends PullConfig {
+export interface ContainerConfig {
   name: string;
   url: string;
   email: string;
@@ -98,10 +98,3 @@ export class DbCredentials {
     public password: string
   ) {}
 }
-export type PullConfig = {
-  username: string,
-  password: string,
-  auth?: string,
-  email?: string,
-  serveraddress: string
-};

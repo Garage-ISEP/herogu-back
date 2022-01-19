@@ -55,13 +55,12 @@ export class GithubService implements OnModuleInit {
   /**
    * Create the repo and returns the lists of shas generated from the files
    */
-  public async addOrUpdateConfiguration(url: string, repoId: number, type: ProjectType, accessToken: string): Promise<string[]> {
+  public async addOrUpdateConfiguration(url: string, repoId: number, type: ProjectType): Promise<string[]> {
     const [owner, repo] = url.split("/").slice(-2);
     
     const octokit = await this._client.getInstallationOctokit(repoId);
     const res = await Promise.all([
       this._addFiles(octokit, owner, repo, type),
-      this._addConfiguration(octokit, owner, repo, accessToken)
     ]);
     return res[0];
   }
@@ -111,7 +110,8 @@ export class GithubService implements OnModuleInit {
     const installationInfo = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
     const octokit = await this._client.getInstallationOctokit(installationInfo.data.id);
     const data = await octokit.request(`POST https://api.github.com/app/installations/${installationInfo.data.id}/access_tokens`)
-    return data.data;
+    console.log(data);
+    return data.data.token;
   }
   /**
    * Verify the configuration from the different shas
@@ -140,15 +140,10 @@ export class GithubService implements OnModuleInit {
     const files = [];
     try {
       files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: "docker" })).data as any as GetContentResponse[]);
-    } catch (e) {
-      console.error(e);
-     }
+    } catch (e) { }
     try {
       files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: ".github/workflows" })).data as any as GetContentResponse[]);
-    } catch (e) {
-      console.error(e);
-      
-    }
+    } catch (e) { }
     return new Map(files.map(file => [file.path, file.sha]));
   }
 
@@ -201,47 +196,6 @@ export class GithubService implements OnModuleInit {
     }
   }
 
-  /**
-   * The two secrets for deployment are added to the repository
-   * Deploy URL: where to ping in order to deploy the application,
-   * CR_PAT: The secret in order to publish the image
-   */
-  private async _addConfiguration(octokit: Octokit, owner: string, repo: string, accessToken: string): Promise<void> {
-    try {
-      const publicKey = (await octokit.request('GET /repos/{owner}/{repo}/actions/secrets/public-key', {
-        owner,
-        repo
-      })).data;
-      const encryptedDeployUrl = Buffer.from(sodium.seal(
-        Buffer.from(`http://deploy.herogu.garageisep.com/deploy/${repo}`),
-        Buffer.from(publicKey.key, 'base64')
-      )).toString("base64");
-      const encryptedAccessToken = Buffer.from(sodium.seal(
-        Buffer.from(accessToken),
-        Buffer.from(publicKey.key, 'base64')
-      )).toString("base64");
-      Promise.all([
-        octokit.rest.actions.createOrUpdateRepoSecret({
-          owner,
-          repo,
-          secret_name: "DEPLOY_WEBHOOK_URL",
-          encrypted_value: encryptedDeployUrl.toString(),
-          key_id: publicKey.key_id
-        }),
-        octokit.rest.actions.createOrUpdateRepoSecret({
-          owner,
-          repo,
-          secret_name: "CR_PAT",
-          encrypted_value: encryptedAccessToken,
-          key_id: publicKey.key_id
-        })
-      ]);
-    } catch (e) {
-      console.error(e);
-      throw new Error("Error adding configuration");
-    }
-  }
-
   public async onGithubPush(event: PushEvent) {
     this._logger.log(`Received push event from ${event.repository.full_name}#${event.ref}`);
     //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
@@ -254,5 +208,22 @@ export class GithubService implements OnModuleInit {
     } catch (e) {
       this._logger.error("Could not get repository access token", e);
     }
+  }
+
+  public async getMainBranch(url: string) {
+    const repoId = await this.getRepoId(url);
+    const octokit = await this._client.getInstallationOctokit(repoId);
+    const owner = url.split("/").slice(-2, -1)[0];
+    const repo = url.split("/").slice(-1)[0];
+    const res = await octokit.rest.repos.get({ owner, repo });
+    return res.data.default_branch;
+  }
+
+  public async getLastCommitSha(url: string) {
+    const [owner, repo] = url.split("/").slice(-2);
+    const octokit = await this._client.getInstallationOctokit(await this.getRepoId(url));
+    const mainBranch = await this.getMainBranch(url);
+    const res = await octokit.rest.repos.getCommit({ owner, repo, ref: "heads/" + mainBranch });
+    return res.data.sha;
   }
 }
