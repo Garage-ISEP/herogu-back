@@ -30,4 +30,4 @@ COPY --from=builder /app/node_modules .
 COPY --from=builder /app/dist ./dist
 
 
-CMD npm start
+CMD ["npm", "run", "start:prod"]
