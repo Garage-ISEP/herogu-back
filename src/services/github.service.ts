@@ -1,18 +1,20 @@
+import { Project } from 'src/database/project.entity';
 import { ProjectType } from './../database/project.entity';
-import { Injectable, OnModuleInit, HttpService } from '@nestjs/common';
+import { Injectable, OnModuleInit, HttpService, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { PushEvent } from "@octokit/webhooks-types";
 import { readFile } from "fs/promises";
 import * as yaml from "yaml";
 import * as fs from "fs/promises";
 import { AppLogger } from 'src/utils/app-logger.util';
-import * as sodium from "tweetsodium";
 import { GetContentResponse } from 'src/models/github.model';
 import { Webhooks, createNodeMiddleware } from '@octokit/webhooks';
 import { HttpAdapterHost } from '@nestjs/core';
+import axios from 'axios';
+import EventSource from "eventsource";
 @Injectable()
 export class GithubService implements OnModuleInit {
-  
+
   private _client: App;
 
   constructor(
@@ -42,11 +44,25 @@ export class GithubService implements OnModuleInit {
       this.adapterHost.httpAdapter.use(createNodeMiddleware(webhooks, { path: "/github/event", log: this._logger }));
       this._logger.log("Github webhooks initialized");
       webhooks.on("push", e => this.onGithubPush(e.payload));
+
+      // const webhookProxyUrl = "https://smee.io/NS6A7KJEAiIgZwGR"; // replace with your own Webhook Proxy URL
+      // const source = new EventSource(webhookProxyUrl);
+      // source.onmessage = (event) => {
+      //   const webhookEvent = JSON.parse(event.data);
+      //   webhooks
+      //     .verifyAndReceive({
+      //       id: webhookEvent["x-request-id"],
+      //       name: webhookEvent["x-github-event"],
+      //       signature: webhookEvent["x-hub-signature"],
+      //       payload: webhookEvent.body,
+      //     })
+      //     .catch(console.error);
+      // };
     } catch (e) {
       this._logger.error("Github webhooks initialization failed", e);
     }
   }
-  
+
   public async getRepoId(url: string) {
     const [owner, repo] = url.split("/").slice(-2);
     const repoInstallation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
@@ -57,7 +73,7 @@ export class GithubService implements OnModuleInit {
    */
   public async addOrUpdateConfiguration(url: string, repoId: number, type: ProjectType): Promise<string[]> {
     const [owner, repo] = url.split("/").slice(-2);
-    
+
     const octokit = await this._client.getInstallationOctokit(repoId);
     const res = await Promise.all([
       this._addFiles(octokit, owner, repo, type),
@@ -201,12 +217,18 @@ export class GithubService implements OnModuleInit {
     //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
     if (event.ref.match(/(?<=heads\/)[a-zA-Z0-9._-]+$/i)?.[0] !== event.repository.default_branch)
       return;
-    //TODO: Check configuration file SHA
     try {
+      console.log(event.installation);
       const token = await this.getInstallationToken(event.repository.url);
-      //TODO: Ping le hook de herogu-ci avec le token
+      const project = await Project.findOne({ where: { repoId: event.installation.id } });
+      if (!project)
+        throw new BadRequestException("Project not found");
+      if (!await this.verifyConfiguration(event.repository.url, project.repoId, project.shas))
+        throw new ForbiddenException("Configuration has changed");
+      await axios.get(`${process.env.HEROGU_CI_HOST}/hooks/${project.uniqueName}?token=${token}`);
+
     } catch (e) {
-      this._logger.error("Could not get repository access token", e);
+      this._logger.error("Error on github push", event.repository.full_name, e);
     }
   }
 
