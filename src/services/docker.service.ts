@@ -135,10 +135,7 @@ export class DockerService implements OnModuleInit {
           Tty: true,
           Labels: labels as any,
           HostConfig: {
-            RestartPolicy: { Name: "always" },
-            PortBindings: {
-              "3000/tcp": [{ HostPort: "8080" }],
-            }
+            RestartPolicy: { Name: "always" }
           },
           ExposedPorts: {
             '80': {}
