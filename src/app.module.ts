@@ -1,5 +1,5 @@
 import { AppLogger } from './utils/app-logger.util';
-import { HttpModule, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerService } from './services/mailer.service';
@@ -11,11 +11,11 @@ import { GithubService } from './services/github.service';
 import { AdminUserController } from './controllers/admin/user/user.controller';
 import { AdminProjectController } from './controllers/admin/project/project.controller';
 import { SsoService } from './services/sso.service';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
     ConfigModule.forRoot(), //env configuration
-    AppLogger, //Custom logger
     HttpModule,
     TypeOrmModule.forRoot({   //Database configuration
       type: 'postgres',
@@ -35,6 +35,6 @@ import { SsoService } from './services/sso.service';
     }),
   ],
   controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
-  providers: [MailerService, DockerService, GithubService, SsoService],
+  providers: [MailerService, DockerService, GithubService, SsoService, AppLogger],
 })
 export class AppModule {}

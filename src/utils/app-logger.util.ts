@@ -1,9 +1,6 @@
 import { Injectable, Logger, Module } from '@nestjs/common';
 
-@Module({
-  providers: [AppLogger],
-  exports: [AppLogger],
-})
+@Injectable()
 export class AppLogger extends Logger {
 
   info(...message: any[]) {

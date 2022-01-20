@@ -1,6 +1,6 @@
 import { Project } from 'src/database/project.entity';
 import { ProjectType } from './../database/project.entity';
-import { Injectable, OnModuleInit, HttpService, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, OnModuleInit, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { PushEvent } from "@octokit/webhooks-types";
 import { readFile } from "fs/promises";
