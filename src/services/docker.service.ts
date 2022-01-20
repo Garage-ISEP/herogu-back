@@ -398,7 +398,8 @@ export class DockerService implements OnModuleInit {
       const [owner, repo] = url.split("/").slice(-2);
       const lastCommitSha = await this._github.getLastCommitSha(url);
       url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
-      await this._docker.buildImage({ context: ".", src: [] }, {
+      this._logger.log("Building image from remote: " + url);
+      const stream = await this._docker.buildImage({ context: ".", src: [] }, {
         t: tag,
         rm: true,
         forcerm: true,
@@ -409,7 +410,10 @@ export class DockerService implements OnModuleInit {
           "docker-ci.repo-url": url,
         }
       });
-
+      await new Promise((resolve, reject) => {
+        stream.on("finish", resolve);
+        stream.on("error", e => reject("Docker build error: " + e));
+      });
     } catch (e) {
       console.error(e);
       throw new DockerImageBuildException(e, url);
