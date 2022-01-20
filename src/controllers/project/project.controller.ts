@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
 import { Observable, Observer, of, Subscriber } from 'rxjs';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
@@ -141,6 +141,7 @@ export class ProjectController {
   }
 
   @Sse('/:id/status')
+  @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
     return new Observable(subscriber => {
       this._projectWatchObservables.set(project.id, subscriber);
