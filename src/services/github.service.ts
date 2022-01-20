@@ -171,23 +171,12 @@ export class GithubService implements OnModuleInit {
    * @returns The shas of the files added
    */
   private async _addFiles(octokit: Octokit, owner: string, repo: string, type: ProjectType): Promise<string[]> {
-    const doc = yaml.parse((await fs.readFile("./config/herogu-ci.yml")).toString());
-    doc.env.IMAGE_NAME = repo;
-
     let dockerfile = (await fs.readFile(`./config/Dockerfile.${type.toLowerCase()}`)).toString();
     dockerfile += `\nLABEL org.opencontainers.image.source https://github.com/${owner}/${repo}`;
     const config = (await fs.readFile(`./config/${type === ProjectType.NGINX ? "nginx.conf" : "php.ini"}`)).toString("base64");
     const previousShas = await this._getFilesShas(octokit, owner, repo);
     try {
       const res = await Promise.all([
-        // octokit.rest.repos.createOrUpdateFileContents({
-        //   path: ".github/workflows/herogu-ci.yml",
-        //   message: "Adding Herogu continuous integration configuration",
-        //   owner,
-        //   sha: previousShas.get(".github/workflows/herogu-ci.yml"),
-        //   repo,
-        //   content: Buffer.from(yaml.stringify(doc)).toString("base64"),
-        // }),
         octokit.rest.repos.createOrUpdateFileContents({
           path: "docker/Dockerfile",
           message: "Adding Herogu deployment and containerisation configuration",

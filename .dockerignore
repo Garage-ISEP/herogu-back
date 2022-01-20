@@ -1,6 +1,6 @@
-config/**
 node_modules/**
 docker/**
 *.env
 LICENCE
 README.md
+.vscode
