@@ -45,19 +45,18 @@ export class GithubService implements OnModuleInit {
       this._logger.log("Github webhooks initialized");
       webhooks.on("push", e => this.onGithubPush(e.payload));
 
-      // const webhookProxyUrl = "https://smee.io/NS6A7KJEAiIgZwGR"; // replace with your own Webhook Proxy URL
-      // const source = new EventSource(webhookProxyUrl);
-      // source.onmessage = (event) => {
-      //   const webhookEvent = JSON.parse(event.data);
-      //   webhooks
-      //     .verifyAndReceive({
-      //       id: webhookEvent["x-request-id"],
-      //       name: webhookEvent["x-github-event"],
-      //       signature: webhookEvent["x-hub-signature"],
-      //       payload: webhookEvent.body,
-      //     })
-      //     .catch(console.error);
-      // };
+      const source = new EventSource(process.env.EVENT_SOURCE);
+      source.onmessage = (event) => {
+        const webhookEvent = JSON.parse(event.data);
+        webhooks
+          .verifyAndReceive({
+            id: webhookEvent["x-request-id"],
+            name: webhookEvent["x-github-event"],
+            signature: webhookEvent["x-hub-signature"],
+            payload: webhookEvent.body,
+          })
+          .catch(console.error);
+      };
     } catch (e) {
       this._logger.error("Github webhooks initialization failed", e);
     }
@@ -155,9 +154,6 @@ export class GithubService implements OnModuleInit {
     const files = [];
     try {
       files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: "docker" })).data as any as GetContentResponse[]);
-    } catch (e) { }
-    try {
-      files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: ".github/workflows" })).data as any as GetContentResponse[]);
     } catch (e) { }
     return new Map(files.map(file => [file.path, file.sha]));
   }
