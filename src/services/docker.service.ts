@@ -427,7 +427,7 @@ export class DockerService implements OnModuleInit {
       "docker-ci.dockerfile": "docker/Dockerfile",
       "traefik.enable": 'true',
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
-      [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
+      [`traefik.http.routers.${name}-secure.entrypoint`]: "websecure",
       [`traefik.http.routers.${name}-secure.tls.certresolver`]: "myhttpchallenge",
       [`traefik.http.routers.${name}.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}.entrypoint`]: "web",
