@@ -36,6 +36,9 @@ export class Project extends BaseEntity {
   @Column({ nullable: true})
   public mysqlPassword: string;
 
+  @Column({ nullable: true })
+  public mysqlDatabase: string;
+
   @Column()
   public uniqueName: string;
 

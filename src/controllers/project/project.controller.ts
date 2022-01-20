@@ -1,3 +1,4 @@
+import { generatePassword } from './../../utils/string.util';
 import { BadRequestException, Body, Controller, Delete, Get, Header, InternalServerErrorException, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
 import { Observable, Observer, of, Subscriber } from 'rxjs';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
@@ -15,7 +16,6 @@ import { ProjectStatus, ProjectStatusResponse } from 'src/models/project.model';
 import { ContainerStatus } from 'src/models/docker/docker-container.model';
 import { MessageEvent } from 'src/models/sse.model';
 import { finalize, map } from 'rxjs/operators';
-import UniqueID from 'nodejs-snowflake';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -62,7 +62,7 @@ export class ProjectController {
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
-      uniqueName: (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "-" + name.substring(0, 10),
+      uniqueName: generatePassword(6) + "-" + name.substring(0, 10),
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
@@ -121,12 +121,12 @@ export class ProjectController {
   public async linkToMysql(@CurrentProject() project: Project, @Body() body: MysqlLinkDto) {
     try {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
-      const creds = await this._docker.createMysqlDBWithUser(project.name, body.mysql);
+      const creds = await this._docker.createMysqlDBWithUser(project.name);
       project.mysqlUser = creds.username;
       project.mysqlPassword = creds.password;
-      project.uniqueName = creds.dbName;
+      project.mysqlDatabase = creds.dbName;
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql"));
-      if (!this._docker.checkMysqlConnection(project.mysqlUser, project.mysqlPassword, project.uniqueName))
+      if (!this._docker.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword))
         this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
     } catch (e) {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
@@ -137,7 +137,7 @@ export class ProjectController {
 
   @Post('/:id/toggle')
   public async toggleProject(@CurrentProject() project: Project) {
-    this._docker.toggleContainerFromName(project.name);
+    await this._docker.toggleContainerFromName(project.name);
   }
 
   @Sse('/:id/status')
@@ -146,7 +146,7 @@ export class ProjectController {
     return new Observable(subscriber => {
       this._projectWatchObservables.set(project.id, subscriber);
 
-      this._docker.checkMysqlConnection(project.uniqueName, project.mysqlUser, project.mysqlPassword)
+      this._docker.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword)
         .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
 
       this._docker.listenContainerStatus(project.uniqueName)

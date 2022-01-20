@@ -35,7 +35,6 @@
     "fs-extra": "^9.1.0",
     "jsonwebtoken": "^8.5.1",
     "node-sql-parser": "^3.6.9",
-    "nodejs-snowflake": "^1.6.2",
     "nodemailer": "^6.6.3",
     "octokit": "^1.5.0",
     "pg": "^8.6.0",

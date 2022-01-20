@@ -3,7 +3,6 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
-import { UniqueID } from "nodejs-snowflake";
 import { AppLogger } from 'src/utils/app-logger.util';
 import { ProjectCreationException } from 'src/errors/docker.exception';
 import { Observable, Observer } from 'rxjs';
@@ -218,8 +217,8 @@ export class DockerService implements OnModuleInit {
    */
   public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
     const creds = new DbCredentials(
-      dbName || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "-" + projectName.substring(0, 10),
-      username || (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "-" + projectName.substring(0, 10),
+      dbName || generatePassword(6) + "_" + projectName.substring(0, 10),
+      username || generatePassword(6) + "_" + projectName.substring(0, 10),
       password || generatePassword()
     );
     try {
