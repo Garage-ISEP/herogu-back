@@ -62,7 +62,7 @@ export class ProjectController {
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
-      uniqueName: (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "_" + name.substring(0, 10),
+      uniqueName: (await new UniqueID().asyncGetUniqueID() as string).substring(0, 6) + "-" + name.substring(0, 10),
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
