@@ -28,7 +28,7 @@ export class AuthController {
    * If the user is not in the database, its will be get from SSO API and then registered
    */
   @Post('login')
-  @Recaptcha()
+  // @Recaptcha()
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
     if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
       throw new ForbiddenException("You are not allowed to login");
