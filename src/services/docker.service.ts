@@ -105,7 +105,7 @@ export class DockerService implements OnModuleInit {
       const repoSha = await this._github.getLastCommitSha(config.url);
       let imageSha: string;
       try {
-        imageSha = (await this._docker.getImage(config.url)?.inspect())?.Config?.Labels?.["docker-ci.repo-sha"];
+        imageSha = (await this._docker.getImage(config.name)?.inspect())?.Config?.Labels?.["docker-ci.repo-sha"];
       } catch (e) { }
       if (imageSha !== repoSha)
         await this._buildImageFromRemote(config.url, config.name);
