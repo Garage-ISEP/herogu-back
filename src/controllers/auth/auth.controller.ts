@@ -1,5 +1,6 @@
+import { AppLogger } from 'src/utils/app-logger.util';
 import { AuthGuard } from './../../guards/auth.guard';
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, InternalServerErrorException, Patch, Post, UseGuards } from '@nestjs/common';
 import { User } from 'src/database/user.entity';
 import { LoginDto, LoginResponse } from './auth.dto';
 import * as jwt from "jsonwebtoken";
@@ -13,6 +14,7 @@ export class AuthController {
 
   constructor(
     private readonly _sso: SsoService,
+    private readonly _logger: AppLogger
   ) { }
 
   @Get("me")
@@ -41,6 +43,11 @@ export class AuthController {
         studentId: creds.studentId
       }).save();
     }
-    return new LoginResponse(jwt.sign(user.studentId, process.env.JWT_SECRET), user);
+    try {
+      return new LoginResponse(jwt.sign(user.studentId, process.env.JWT_SECRET), user);
+    } catch (e) {
+      this._logger.log("Error during login", e);
+      throw new InternalServerErrorException("Error during login");
+    }
   }
 }

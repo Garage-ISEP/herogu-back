@@ -1,4 +1,4 @@
-interface SsoInfo {
+export interface SsoInfo {
   mail: string;
   prenom: string;
   type: string;

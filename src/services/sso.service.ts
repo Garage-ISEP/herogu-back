@@ -1,6 +1,5 @@
+import { SsoInfo } from './../models/sso.model';
 import { ForbiddenException, HttpService, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { AxiosError } from 'axios';
-import FormData from "form-data";
 import qs from 'qs';
 import { AppLogger } from 'src/utils/app-logger.util';
 @Injectable()
