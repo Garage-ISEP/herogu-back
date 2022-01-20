@@ -126,7 +126,6 @@ export class GithubService implements OnModuleInit {
     const installationInfo = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
     const octokit = await this._client.getInstallationOctokit(installationInfo.data.id);
     const data = await octokit.request(`POST https://api.github.com/app/installations/${installationInfo.data.id}/access_tokens`)
-    console.log(data);
     return data.data.token;
   }
   /**

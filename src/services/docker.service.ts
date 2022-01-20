@@ -119,8 +119,8 @@ export class DockerService implements OnModuleInit {
     try {
       await this.removeContainerFromName(config.name);
     } catch (e) {
-      this._logger.info("Error removing container " + config.name);
-      this._logger.info("Cannot continue container creation, incident will be reported");
+      this._logger.error("Error removing container " + config.name);
+      this._logger.error("Cannot continue container creation, incident will be reported");
       // this._mail.sendErrorMail(this, "Error removing container : ", e);
       return;
     }
@@ -410,8 +410,8 @@ export class DockerService implements OnModuleInit {
           "docker-ci.repo-url": url,
         }
       });
-      await new Promise((resolve, reject) => {
-        stream.on("finish", resolve);
+      await new Promise<void>((resolve, reject) => {
+        stream.on("end", () => resolve());
         stream.on("error", e => reject("Docker build error: " + e));
       });
     } catch (e) {
