@@ -1,7 +1,7 @@
 import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
 
 export class CreateProjectDto {
-  @Matches(/^(?!(create|admin|garage|isep))\w{3,15}$/)
+  @Matches(/^(?!(create|admin|garage|isep|-))([a-z-]{3,15})[^-]$/)
   public name: string;
 
   @IsUrl()

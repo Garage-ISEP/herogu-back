@@ -1,21 +1,21 @@
+import { DockerService } from 'src/services/docker.service';
 import { Project } from 'src/database/project.entity';
 import { ProjectType } from './../database/project.entity';
 import { Injectable, OnModuleInit, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { PushEvent } from "@octokit/webhooks-types";
 import { readFile } from "fs/promises";
-import * as yaml from "yaml";
 import * as fs from "fs/promises";
 import { AppLogger } from 'src/utils/app-logger.util';
 import { GetContentResponse } from 'src/models/github.model';
 import { Webhooks, createNodeMiddleware } from '@octokit/webhooks';
 import { HttpAdapterHost } from '@nestjs/core';
-import axios from 'axios';
 import EventSource from "eventsource";
 @Injectable()
 export class GithubService implements OnModuleInit {
 
   private _client: App;
+  public onContainerUpdate: (project: Project) => Promise<any>;
 
   constructor(
     private readonly _logger: AppLogger,
@@ -42,7 +42,6 @@ export class GithubService implements OnModuleInit {
       this._logger.log("Initializing Github webhooks...");
       const webhooks = new Webhooks({ secret: process.env.GITHUB_WEBHOOK_SECRET });
       this.adapterHost.httpAdapter.use(createNodeMiddleware(webhooks, { path: "/github/event", log: this._logger }));
-      this._logger.log("Github webhooks initialized");
       webhooks.on("push", e => this.onGithubPush(e.payload));
 
       const source = new EventSource(process.env.EVENT_SOURCE);
@@ -57,6 +56,7 @@ export class GithubService implements OnModuleInit {
           })
           .catch(console.error);
       };
+      this._logger.log("Github webhooks initialized");
     } catch (e) {
       this._logger.error("Github webhooks initialization failed", e);
     }
@@ -74,22 +74,7 @@ export class GithubService implements OnModuleInit {
     const [owner, repo] = url.split("/").slice(-2);
 
     const octokit = await this._client.getInstallationOctokit(repoId);
-    const res = await Promise.all([
-      this._addFiles(octokit, owner, repo, type),
-    ]);
-    return res[0];
-  }
-
-  /**
-   * Disable all workflow runs except the last one
-   */
-  public async disableAllWorkflowRuns(url: string, repoId: number) {
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    const [owner, repo] = url.split("/").slice(-2);
-    const workflows = await octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo });
-    for (const workflow of workflows.data.workflow_runs.filter((el, index) => (el.status === "queued" || el.status === "in_progress") && index !== 0)) {
-      await octokit.rest.actions.cancelWorkflowRun({ owner, repo, run_id: workflow.id });
-    }
+    return await this._addFiles(octokit, owner, repo, type);
   }
 
   public async verifyInstallation(url: string) {
@@ -99,25 +84,6 @@ export class GithubService implements OnModuleInit {
     } catch (e) {
       return false;
     }
-  }
-
-  public async verifyImage(url: string, repoId: number) {
-    const [owner, repo] = url.split("/").slice(-2);
-    try {
-      const octokit = await this._client.getInstallationOctokit(repoId);
-      await octokit.rest.packages.getPackageForUser({ username: owner, package_name: repo, package_type: "container" });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  public async isLastImage(githubId: number, url: string) {
-    const [owner, repo, name] = url.split(":")[0].split("/").slice(-3);
-    const repoId = await this.getRepoId(url);
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    const image = await octokit.rest.packages.getPackageForUser({ package_name: name, package_type: "container", username: owner });
-    return image.data.id == githubId;
   }
 
   public async getInstallationToken(url: string): Promise<string> {
@@ -131,6 +97,7 @@ export class GithubService implements OnModuleInit {
    * Verify the configuration from the different shas
    */
   public async verifyConfiguration(url: string, repoId: number, shas: string[]) {
+    if (!shas) return false;
     const octokit = await this._client.getInstallationOctokit(repoId);
     const previousShas = await this._getFilesShas(octokit, url);
     for (const sha of previousShas.values()) {
@@ -151,7 +118,7 @@ export class GithubService implements OnModuleInit {
     if (!repo) {
       [owner, repo] = urlOrOwner.split("/").slice(-2);
     } else owner = urlOrOwner;
-    const files = [];
+    const files: GetContentResponse[] = [];
     try {
       files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: "docker" })).data as any as GetContentResponse[]);
     } catch (e) { }
@@ -160,7 +127,6 @@ export class GithubService implements OnModuleInit {
 
   /**
    * The configuration files are added to the repository
-   * Github continuous integration workflow in yaml
    * The Dockerfile (with a custom LABEL)
    * The container configuration file
    * @returns The shas of the files added
@@ -189,7 +155,7 @@ export class GithubService implements OnModuleInit {
           content: config,
         })
       ]);
-      return res.map(el => el.data.content.sha);
+      return [...(await this._getFilesShas(octokit, owner, repo)).values()];
     } catch (e) {
       console.error(e);
       throw new Error("Error adding files to repo");
@@ -201,18 +167,18 @@ export class GithubService implements OnModuleInit {
     //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
     if (event.ref.match(/(?<=heads\/)[a-zA-Z0-9._-]+$/i)?.[0] !== event.repository.default_branch)
       return;
+    console.log(event.sender);
+    //Stop if the event is trigerred by the bot
+    if (event.sender.login === 'herogu-app[bot]') return;
+    const project = await Project.findOne({ where: { repoId: event.installation.id } });
+    if (!project)
+      throw new BadRequestException("Project not found");
     try {
-      console.log(event.installation);
-      const token = await this.getInstallationToken(event.repository.url);
-      const project = await Project.findOne({ where: { repoId: event.installation.id } });
-      if (!project)
-        throw new BadRequestException("Project not found");
-      if (!await this.verifyConfiguration(event.repository.url, project.repoId, project.shas))
-        throw new ForbiddenException("Configuration has changed");
-      await axios.get(`${process.env.HEROGU_CI_HOST}/hooks/${project.uniqueName}?token=${token}`);
-      this._logger.log(`Successfully update projet ${project.uniqueName}`);
+      this._logger.log("Starting to update project", project.name);
+      await this.onContainerUpdate(project);
+      this._logger.log(`Successfully update projet ${project.name}`);
     } catch (e) {
-      this._logger.error("Error on github push", event.repository.full_name, e);
+      this._logger.error("Impossible to update project", project.name, e);
     }
   }
 

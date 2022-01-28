@@ -40,9 +40,6 @@ export class Project extends BaseEntity {
   public mysqlDatabase: string;
 
   @Column()
-  public uniqueName: string;
-
-  @Column()
   public mysqlEnabled: boolean;
 
   @Column()

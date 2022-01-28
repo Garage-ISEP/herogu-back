@@ -1,12 +1,11 @@
+import { Project } from 'src/database/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
-import { ContainerConfig, ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, DbCredentials, EventResponse } from 'src/models/docker/docker-container.model';
+import { ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { AppLogger } from 'src/utils/app-logger.util';
-import { ProjectCreationException } from 'src/errors/docker.exception';
 import { Observable, Observer } from 'rxjs';
-import { generatePassword } from 'src/utils/string.util';
 import { GithubService } from './github.service';
 @Injectable()
 export class DockerService implements OnModuleInit {
@@ -18,7 +17,9 @@ export class DockerService implements OnModuleInit {
     private readonly _logger: AppLogger,
     private readonly _mail: MailerService,
     private readonly _github: GithubService,
-  ) { }
+  ) {
+    this._github.onContainerUpdate = (project) => this.launchContainerFromConfig(project, false);
+  }
 
   public async onModuleInit() {
     try {
@@ -70,6 +71,7 @@ export class DockerService implements OnModuleInit {
    * Also print all the previous logs
    * The listener is called line by line for the logs
    * Throw an error if the container name doesn't exist
+   * Can be used for instance for nodejs container or other
    */
   public async listenContainerLogs(name: string): Promise<Observable<string>> {
     try {
@@ -97,27 +99,35 @@ export class DockerService implements OnModuleInit {
    * If a container with the same name already exist the former container is stopped and removed
    * In case of failure, it retries 3 times
    */
-  public async launchContainerFromConfig(config: ContainerConfig): Promise<Container | null> {
-    const labels = await this._getLabels(config.name, config.url, config.email);
+  public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
+    if (!await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
+      this._logger.log("Project configuration is not valid, resetting configuration");
+      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type);
+      await project.save();
+    }
     try {
-      const repoSha = await this._github.getLastCommitSha(config.url);
+      const repoSha = await this._github.getLastCommitSha(project.githubLink);
       let imageSha: string;
       try {
-        imageSha = (await this._docker.getImage(config.name)?.inspect())?.Config?.Labels?.["docker-ci.repo-sha"];
+        imageSha = await this.getImageCommitSha(project.name);
       } catch (e) { }
       if (imageSha !== repoSha)
-        await this._buildImageFromRemote(config.url, config.name);
+        await this._buildImageFromRemote(project.githubLink, project.name);
+      else if (!forceRecreate) {
+        this._logger.log("Image already exists, not rebuilding");
+        return;
+      }
     } catch (e) {
-      this._logger.error("Impossible to build image from url :", config.url);
+      this._logger.error("Impossible to build image from url :" + project.githubLink);
       this._logger.error("Image doesn't exists, impossible to continue, incident will be reported");
       this._logger.error(e);
       // this._mail.sendErrorMail(this, "Error pulling image : ", e);
       throw new DockerImageNotFoundException();
     }
     try {
-      await this.removeContainerFromName(config.name);
+      await this.removeContainerFromName(project.name);
     } catch (e) {
-      this._logger.error("Error removing container " + config.name);
+      this._logger.error("Error removing container " + project.name);
       this._logger.error("Cannot continue container creation, incident will be reported");
       // this._mail.sendErrorMail(this, "Error removing container : ", e);
       return;
@@ -126,21 +136,19 @@ export class DockerService implements OnModuleInit {
     let error: string;
     for (let i = 0; i < 3; i++) {
       try {
-        this._logger.log("Trying to create container :", config.name, "- iteration :", i);
+        this._logger.log("Trying to create container :", project.name, "- iteration :", i);
         const container = await this._docker.createContainer({
-          Image: config.name,
-          name: config.name,
+          Image: project.name,
+          name: project.name,
           Tty: true,
-          Labels: labels as any,
+          Labels: this._getLabels(project.name) as any,
           HostConfig: {
             RestartPolicy: { Name: "always" }
           },
           ExposedPorts: {
             '80': {}
           },
-          Env: Object.keys(config.env).map(
-            (key) => key + "=" + config.env[key]
-          ),
+          Env: this._getEnv(project),
           NetworkingConfig: {
             EndpointsConfig: {
               web: { Aliases: ["web"] },
@@ -148,7 +156,7 @@ export class DockerService implements OnModuleInit {
           },
         });
         await container.start({});
-        this._logger.info("Container", config.name, "created and started");
+        this._logger.info("Container", project.name, "created and started");
         return container;
       } catch (e) {
         error = e;
@@ -197,15 +205,6 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  public async pullImage(image: string, config: ContainerConfig) {
-    try {
-      await this._docker.pull(image, { authconfig: config });
-    } catch (e) {
-      this._logger.error("Impossible to get image from url :", image);
-      throw new DockerImageNotFoundException();
-    }
-  }
-
   public async pruneImages() {
     await this._docker.pruneImages();
   }
@@ -241,7 +240,6 @@ export class DockerService implements OnModuleInit {
     });
     return observable;
   }
-
 
   public async imageExists(name: string): Promise<boolean> {
     try {
@@ -285,6 +283,11 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  private async getImageCommitSha(image: string): Promise<string> {
+    const infos = await this._docker.getImage(image).inspect()
+    return infos.Config.Labels["herogu.sha"];
+  }
+
   private async _checkStatusEvents(containerId: string) {
     let state: Dockerode.ContainerInspectInfo["State"];
     const handler = this._statusListeners.get(containerId);
@@ -321,12 +324,12 @@ export class DockerService implements OnModuleInit {
     throw new DockerContainerNotFoundException("No container found with name " + name);
   }
 
-  private async _buildImageFromRemote(url: string, tag: string): Promise<void> {
+  private async _buildImageFromRemote(url: string, tag: string, lastCommitSha?: string): Promise<void> {
     try {
       const token = await this._github.getInstallationToken(url);
       const mainBranch = await this._github.getMainBranch(url);
       const [owner, repo] = url.split("/").slice(-2);
-      const lastCommitSha = await this._github.getLastCommitSha(url);
+      lastCommitSha ??= await this._github.getLastCommitSha(url);
       url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
       this._logger.log("Building image from remote: " + url);
       await this._docker.buildImage({ context: ".", src: [] }, {
@@ -336,8 +339,7 @@ export class DockerService implements OnModuleInit {
         remote: url,
         dockerfile: "docker/Dockerfile",
         labels: {
-          "docker-ci.repo-sha": lastCommitSha,
-          "docker-ci.repo-url": url,
+          "herogu.sha": lastCommitSha,
         }
       });
     } catch (e) {
@@ -346,15 +348,8 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  private async _getLabels(name: string, url: string, email: string): Promise<ContainerLabels> {
-    const [owner, repo] = url.split("/").slice(-2);
-    const mainBranch = await this._github.getMainBranch(url);
+  private _getLabels(name: string): ContainerLabels {
     return {
-      "docker-ci.enable": "true",
-      "docker-ci.name": name,
-      "docker-ci.repo": `https://x-access-token:{{TOKEN}}@github.com/${owner}/${repo}.git#${mainBranch}`,
-      "docker-ci.email": email,
-      "docker-ci.dockerfile": "docker/Dockerfile",
       "traefik.enable": 'true',
       [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}.herogu.garageisep.com\`)`,
       [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
@@ -364,6 +359,16 @@ export class DockerService implements OnModuleInit {
       [`traefik.http.routers.${name}.middlewares`]: "redirect",
       "traefik.http.middlewares.redirect.redirectscheme.scheme": "https",
     };
+  }
+
+  private _getEnv(project: Project): string[] {
+    return [
+      `MYSQL_DATABASE=${project.mysqlDatabase}`,
+      `MYSQL_USER=${project.mysqlUser}`,
+      `MYSQL_PASSWORD=${project.mysqlPassword}`,
+      `MYSQL_HOST=${process.env.MYSQL_HOST}`,
+      ...Object.keys(project.env).map(key => key + "=" + project.env[key])
+    ];
   }
 
   /**

@@ -1,26 +1,8 @@
-export interface ContainerConfig {
-  name: string;
-  url: string;
-  email: string;
-  env: { [key: string]: string };
-}
 
 export interface ContainerLabels {
-  "docker-ci.enable": string,
-  "docker-ci.name": string,
-  "docker-ci.repo": string,
-  "docker-ci.email": string;
-  
-  "docker-ci.password"?: string;
-  "docker-ci.username"?: string;
-  "docker-ci.auth-server"?: string;
-  "docker-ci.dockerfile"?: string;
-  
-
   "traefik.enable": string,
   "traefik.http.middlewares.redirect.redirectscheme.scheme": string,
 }
-
 export interface ContainerLogsConfig {
   detachKeys?: string;
   logs: boolean;
