@@ -167,7 +167,6 @@ export class GithubService implements OnModuleInit {
     //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
     if (event.ref.match(/(?<=heads\/)[a-zA-Z0-9._-]+$/i)?.[0] !== event.repository.default_branch)
       return;
-    console.log(event.sender);
     //Stop if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
     const project = await Project.findOne({ where: { repoId: event.installation.id } });
