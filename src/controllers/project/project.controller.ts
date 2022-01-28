@@ -16,6 +16,7 @@ import { ProjectStatus, ProjectStatusResponse } from 'src/models/project.model';
 import { ContainerStatus } from 'src/models/docker/docker-container.model';
 import { MessageEvent } from 'src/models/sse.model';
 import { finalize, map } from 'rxjs/operators';
+import { MysqlService } from 'src/services/mysql.service';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -25,6 +26,7 @@ export class ProjectController {
     private readonly _logger: AppLogger,
     private readonly _github: GithubService,
     private readonly _docker: DockerService,
+    private readonly _mysql: MysqlService,
   ) { }
 
   private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
@@ -121,12 +123,12 @@ export class ProjectController {
   public async linkToMysql(@CurrentProject() project: Project, @Body() body: MysqlLinkDto) {
     try {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
-      const creds = await this._docker.createMysqlDBWithUser(project.name);
+      const creds = await this._mysql.createMysqlDBWithUser(project.name);
       project.mysqlUser = creds.username;
       project.mysqlPassword = creds.password;
       project.mysqlDatabase = creds.dbName;
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql"));
-      if (!this._docker.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword))
+      if (!this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword))
         this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
     } catch (e) {
       this._projectWatchObservables.get(project.id)?.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
@@ -146,7 +148,7 @@ export class ProjectController {
     return new Observable(subscriber => {
       this._projectWatchObservables.set(project.id, subscriber);
 
-      this._docker.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword)
+      this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword)
         .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
 
       this._docker.listenContainerStatus(project.uniqueName)

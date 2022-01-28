@@ -1,3 +1,4 @@
+import { MysqlService } from './services/mysql.service';
 import { AppLogger } from './utils/app-logger.util';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from "@nestjs/config";
@@ -35,6 +36,6 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ],
   controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
-  providers: [MailerService, DockerService, GithubService, SsoService, AppLogger],
+  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, AppLogger],
 })
 export class AppModule {}
