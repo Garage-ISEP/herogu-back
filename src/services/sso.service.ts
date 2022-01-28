@@ -3,6 +3,7 @@ import { ForbiddenException, Injectable, InternalServerErrorException } from '@n
 import qs from 'qs';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 @Injectable()
 export class SsoService {
 
@@ -13,7 +14,7 @@ export class SsoService {
 
   public async login(username: string, password: string): Promise<string> {
     try {
-      const response = await this._http.post('https://sso-portal.isep.fr', qs.stringify({ user: username, password })).toPromise();
+      const response = await firstValueFrom(this._http.post('https://sso-portal.isep.fr', qs.stringify({ user: username, password })));
       return response.headers["set-cookie"][0].split(";").find((el: string) => el.split("=")[0] === "lemonldap").split("=")[1];
     } catch (e) {
       if (e.response.data.error == 5)
@@ -27,11 +28,11 @@ export class SsoService {
 
   public async getUser(token: string): Promise<SsoInfo> {
     try {
-      const response = await this._http.get<SsoInfo>(`https://sso-portal.isep.fr/session/my/global`, {
+      const response = await firstValueFrom(this._http.get<SsoInfo>(`https://sso-portal.isep.fr/session/my/global`, {
         headers: {
           Cookie: `lemonldap=${token};`
         }
-      }).toPromise();
+      }));
       return response.data;
     } catch (e) {
       this._logger.error("Sso error", e);
