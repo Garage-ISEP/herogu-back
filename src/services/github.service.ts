@@ -210,7 +210,7 @@ export class GithubService implements OnModuleInit {
       if (!await this.verifyConfiguration(event.repository.url, project.repoId, project.shas))
         throw new ForbiddenException("Configuration has changed");
       await axios.get(`${process.env.HEROGU_CI_HOST}/hooks/${project.uniqueName}?token=${token}`);
-
+      this._logger.log(`Successfully update projet ${project.uniqueName}`);
     } catch (e) {
       this._logger.error("Error on github push", event.repository.full_name, e);
     }
