@@ -18,12 +18,8 @@ export class ProjectController {
 
   constructor(
     private readonly _logger: AppLogger,
-    private readonly _github: GithubService,
-    private readonly _docker: DockerService,
-    private readonly _mysql: MysqlService,
+    private readonly _github: GithubService
   ) { }
-
-  private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
 
   @Get("/exists/:name")
   public async projectExists(@Param("name") name: string) {
