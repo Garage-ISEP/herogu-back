@@ -171,7 +171,7 @@ export class GithubService implements OnModuleInit {
     if (event.sender.login === 'herogu-app[bot]') return;
     const project = await Project.findOne({ where: { repoId: event.installation.id } });
     if (!project)
-      throw new BadRequestException("Project not found");
+      return;
     try {
       this._logger.log("Starting to update project", project.name);
       await this.onContainerUpdate(project);
