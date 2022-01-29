@@ -23,7 +23,6 @@ export class ProjectController {
 
   @Get("/exists/:name")
   public async projectExists(@Param("name") name: string) {
-    this._logger.log(name);
     if (!!await Project.findOne({ where: { name } })) {
       throw new BadRequestException("This project name already exists");
     }
@@ -31,16 +30,14 @@ export class ProjectController {
 
   @Get("/check-bot-github")
   public async checkProjectGithubLink(@Query("link") link: string) {
-    return await this._github.verifyInstallation(link);
+    return await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() }});
   }
 
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
-    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() }, relations: ["creator"] });
-    if (project && project.creator.id !== user.id)
+    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() }});
+    if (project)
       throw new BadRequestException("This repository has already been registered");
-    else if (project?.creator?.id === user.id)
-      return project;
     return await Project.create({
       creator: user,
       ...projectReq,
