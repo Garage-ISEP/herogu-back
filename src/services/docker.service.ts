@@ -102,7 +102,7 @@ export class DockerService implements OnModuleInit {
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
     if (!await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
       this._logger.log("Project configuration is not valid, resetting configuration");
-      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type);
+      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, project.rootDir);
       await project.save();
     }
     try {
@@ -143,7 +143,10 @@ export class DockerService implements OnModuleInit {
           Tty: true,
           Labels: this._getLabels(project.name) as any,
           HostConfig: {
-            RestartPolicy: { Name: "always" }
+            RestartPolicy: { Name: "always" },
+            PortBindings: {
+              "8081/tcp": [{ HostPort: "80" }],
+            },
           },
           ExposedPorts: {
             '80': {}
@@ -332,7 +335,7 @@ export class DockerService implements OnModuleInit {
       lastCommitSha ??= await this._github.getLastCommitSha(url);
       url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
       this._logger.log("Building image from remote: " + url);
-      await this._docker.buildImage({ context: ".", src: [] }, {
+      const stream = await this._docker.buildImage({ context: ".", src: [] }, {
         t: tag,
         rm: true,
         forcerm: true,

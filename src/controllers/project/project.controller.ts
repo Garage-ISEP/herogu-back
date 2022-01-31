@@ -33,6 +33,17 @@ export class ProjectController {
     return await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() }});
   }
 
+  @Get("/repo-tree")
+  public async getRepoTree(@Query("link") link: string, @Query("sha") sha?: string) {
+    try {
+      const res = await this._github.getRepositoryTree(link, sha);
+      res.data.tree = res.data.tree.filter(el => el.type == "tree");
+      return res.data;
+    } catch (e) {
+      return { tree: [] };
+    }
+  }
+
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
     const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() }});

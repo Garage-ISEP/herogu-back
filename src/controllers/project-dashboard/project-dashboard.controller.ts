@@ -49,7 +49,7 @@ export class ProjectDashboardController {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "github"));
       if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
-        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type);
+        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, project.rootDir);
         await project.save();
       }
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));

@@ -20,6 +20,9 @@ export class CreateProjectDto {
   @ArrayMaxSize(10)
   public addedUsers: string[];
 
+  @IsString()
+  public rootDir: string;
+
   @IsObject()
   @IsOptional()
   public env: { [key: string]: string } = {};
