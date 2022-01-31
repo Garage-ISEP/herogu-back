@@ -3,7 +3,7 @@
 ## Project deployment
 All deployments are located in : [config/](config/)
 * The PHP folders holds all the configuration to run with PHP-FPM and nginx
-* The [php.ini file](config/php/php.ini) contains the vasr that will be subsistuded by docker's env vars 
+* The [php.ini file](config/php/php.ini) contains the vars that will be substituted by docker's env vars 
 
 PHP_ERROR_REPORTING : 
 ```ini
