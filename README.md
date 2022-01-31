@@ -3,7 +3,7 @@
 ## Project deployment
 All deployments are located in : [config/](config/)
 * The PHP folders holds all the configuration to run with PHP-FPM and nginx
-* The [php.ini file](config/php/php.ini) contains the vars that will be substituted by docker's env vars 
+* The [php.ini file](config/php/php.ini) contains vars that will be substituted by docker's env vars :
 
 PHP_ERROR_REPORTING : 
 ```ini
@@ -39,4 +39,4 @@ PHP_DISPLAY_ERROR :
 display_errors = ${PHP_DISPLAY_ERROR}
 ```
 * All the nginx configurations use the env variable `PROJECT_ROOT` that will be substituted when generating all the config files in the repository
-* The PHP dynamic Dockerfile will use a base image generated and store on the garageisep repositories from the following Dockerfile : [config/php/Dockerfile.base](config/php/Dockerfile.base)
+* The PHP dynamic Dockerfile will use a base image generated and stored on the garageisep repositories from the following Dockerfile : [config/php/Dockerfile.base](config/php/Dockerfile.base)
