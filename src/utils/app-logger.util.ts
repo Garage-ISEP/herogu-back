@@ -19,6 +19,6 @@ export class AppLogger extends Logger {
     super.verbose(message.join(" "), "AppLogger");
   }
   error(...message: any[]) {
-    super.error(message.join(" "), null, "AppLogger");
+    super.error(message.slice(0, -1).join(" "), message[message.length - 1], "AppLogger");
   }
 }

@@ -1,3 +1,4 @@
+import { MysqlService } from './services/mysql.service';
 import { AppLogger } from './utils/app-logger.util';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from "@nestjs/config";
@@ -12,6 +13,7 @@ import { AdminUserController } from './controllers/admin/user/user.controller';
 import { AdminProjectController } from './controllers/admin/project/project.controller';
 import { SsoService } from './services/sso.service';
 import { HttpModule } from '@nestjs/axios';
+import { ProjectDashboardController } from './controllers/project-dashboard/project-dashboard.controller';
 
 @Module({
   imports: [
@@ -34,7 +36,7 @@ import { HttpModule } from '@nestjs/axios';
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController],
-  providers: [MailerService, DockerService, GithubService, SsoService, AppLogger],
+  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController],
+  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, AppLogger],
 })
 export class AppModule {}

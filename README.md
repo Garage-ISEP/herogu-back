@@ -1,73 +1,42 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo_text.svg" width="320" alt="Nest Logo" /></a>
-</p>
+# Herogu backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Project deployment
+All deployments are located in : [config/](config/)
+* The PHP folders holds all the configuration to run with PHP-FPM and nginx
+* The [php.ini file](config/php/php.ini) contains the vars that will be substituted by docker's env vars 
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Installation
-
-```bash
-$ npm install
+PHP_ERROR_REPORTING : 
+```ini
+; Common Values:
+;   E_ALL (Show all errors, warnings and notices including coding standards.)
+;   E_ALL & ~E_NOTICE  (Show all errors, except for notices)
+;   E_ALL & ~E_NOTICE & ~E_STRICT  (Show all errors, except for notices and coding standards warnings.)
+;   E_COMPILE_ERROR|E_RECOVERABLE_ERROR|E_ERROR|E_CORE_ERROR  (Show only errors)
+; Default Value: E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED
+; Development Value: E_ALL
+; Production Value: E_ALL & ~E_DEPRECATED & ~E_STRICT
+; http://php.net/error-reporting
+error_reporting = ${PHP_ERROR_REPORTING}
 ```
 
-## Running the app
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+PHP_DISPLAY_ERROR :
+```ini
+; This directive controls whether or not and where PHP will output errors,
+; notices and warnings too. Error output is very useful during development, but
+; it could be very dangerous in production environments. Depending on the code
+; which is triggering the error, sensitive information could potentially leak
+; out of your application such as database usernames and passwords or worse.
+; It's recommended that errors be logged on production servers rather than
+; having the errors sent to STDOUT.
+; Possible Values:
+;   Off = Do not display any errors 
+;   stderr = Display errors to STDERR (affects only CGI/CLI binaries!)   
+;   On or stdout = Display errors to STDOUT
+; Default Value: On
+; Development Value: On
+; Production Value: Off
+; http://php.net/display-errors
+display_errors = ${PHP_DISPLAY_ERROR}
 ```
-
-## Test
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).
+* All the nginx configurations use the env variable `PROJECT_ROOT` that will be substituted when generating all the config files in the repository
+* The PHP dynamic Dockerfile will use a base image generated and store on the garageisep repositories from the following Dockerfile : [config/php/Dockerfile.base](config/php/Dockerfile.base)

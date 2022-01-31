@@ -1,0 +1,60 @@
+FROM alpine:edge
+
+LABEL maintainer="theodore.prevot@garageisep.com" \
+	org.label-schema.name="alpine" \
+	org.label-schema.vendor="GarageISEP" \
+	org.label-schema.version="8.1.2" \
+	org.label-schema.description="Docker Alpine image with PHP-FPM and Nginx for Herogu systems" \
+	org.label-schema.license="MIT" \
+	ORIGIN=herogu.garageisep.com
+
+# Code from 
+RUN echo '@edge http://dl-cdn.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories \
+	&& echo '@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories \
+	&& echo '@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories \
+	&& apk add --no-cache openrc su-exec ca-certificates wait4ports \
+	# Disable getty's
+	&& sed -i 's/^\(tty\d\:\:\)/#\1/g' /etc/inittab \
+	&& sed -i \
+	# Change subsystem type to "docker"
+	-e 's/#rc_sys=".*"/rc_sys="docker"/g' \
+	# Allow all variables through
+	-e 's/#rc_env_allow=".*"/rc_env_allow="\*"/g' \
+	# Start crashed services
+	-e 's/#rc_crashed_stop=.*/rc_crashed_stop=NO/g' \
+	-e 's/#rc_crashed_start=.*/rc_crashed_start=YES/g' \
+	# Define extra dependencies for services
+	-e 's/#rc_provide=".*"/rc_provide="loopback net"/g' \
+	/etc/rc.conf \
+	# Remove unnecessary services
+	&& rm -f /etc/init.d/hwdrivers \
+	/etc/init.d/hwclock \
+	/etc/init.d/hwdrivers \
+	/etc/init.d/modules \
+	/etc/init.d/modules-load \
+	/etc/init.d/modloop \
+	# Can't do cgroups
+	&& sed -i 's/\tcgroup_add_service/\t#cgroup_add_service/g' /lib/rc/sh/openrc-run.sh \
+	&& sed -i 's/VSERVER/DOCKER/Ig' /lib/rc/sh/init.sh
+
+RUN apk update && apk upgrade
+
+# PHP extension requirements
+RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache oniguruma libcurl libcrypto3 curl
+
+# PHP binaries
+RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/community --no-cache php8-fpm php8-pdo_mysql php8-mysqli php8-curl php8-pdo php8-pdo_mysql php8-exif php8-mbstring
+
+# Nginx binary
+RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache nginx 
+
+# Copy php configurations
+COPY config/php/www.conf /etc/php8/php-fpm.d/www.conf
+COPY config/php/php.ini /etc/php/php.ini
+
+# Enable php and nginx service
+RUN rc-update add php-fpm8 default
+RUN rc-update add nginx default
+
+
+CMD ["/sbin/init"]
