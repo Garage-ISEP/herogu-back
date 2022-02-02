@@ -303,7 +303,6 @@ export class DockerService implements OnModuleInit {
     } catch (e) {
       handler.next([ContainerStatus.NotFound]);
       handler.complete();
-      console.log("handler completed");
       this._statusListeners.delete(containerId);
     }
     if (!state)
