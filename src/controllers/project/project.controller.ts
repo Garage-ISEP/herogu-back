@@ -54,7 +54,7 @@ export class ProjectController {
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
       phpInfo: projectReq.type == "php" ? PhpInfo.create() : null,
-      mysqlInfo: projectReq.mysqlEnabled ? new MysqlInfo(projectReq.name) : null,
+      mysqlInfo: projectReq.mysqlEnabled ? await new MysqlInfo(projectReq.name).save() : null,
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
