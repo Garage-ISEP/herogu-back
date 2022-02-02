@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards } from '@nestjs/common';
+import { ConfigService } from './../../services/config.service';
+import { PhpLogLevelDto } from './project-dashboard.dto';
+import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
 import { Observable, map, finalize, Subscriber } from 'rxjs';
 import { Project } from 'src/database/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
@@ -12,6 +14,7 @@ import { MysqlService } from 'src/services/mysql.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
+import { MysqlInfo } from 'src/database/mysql-info.entity';
 
 
 @Controller('project/:id')
@@ -23,6 +26,7 @@ export class ProjectDashboardController {
     private readonly _github: GithubService,
     private readonly _docker: DockerService,
     private readonly _mysql: MysqlService,
+    private readonly _config: ConfigService
   ) { }
 
   private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
@@ -79,11 +83,13 @@ export class ProjectDashboardController {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
       const creds = await this._mysql.createMysqlDBWithUser(project.name);
-      project.mysqlUser = creds.username;
-      project.mysqlPassword = creds.password;
-      project.mysqlDatabase = creds.dbName;
+      project.mysqlInfo ??= MysqlInfo.create({
+        database: creds.dbName,
+        user: creds.username,
+        password: creds.password
+      });
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql"));
-      if (!this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword))
+      if (!this._mysql.checkMysqlConnection(project.mysqlInfo.database, project.mysqlInfo.user, project.mysqlInfo.password))
         this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
     } catch (e) {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
@@ -97,13 +103,27 @@ export class ProjectDashboardController {
     await this._docker.toggleContainerFromName(project.name);
   }
 
+  @Patch('php-log-level')
+  public async updatePhpLogLevel(@CurrentProject() project: Project, @Body() body: PhpLogLevelDto) {
+    Object.assign(project.phpInfo, body);
+    await project.save();
+    await this._config.updatePhpLogLevel(project);
+  }
+
+  @Patch('http-root-url')
+  public async updateHttpRootUrl(@CurrentProject() project: Project, @Body("httpRootUrl") rootDir: string) {
+    project.rootDir = rootDir;
+    await project.save();
+    await this._config.updateHttpRootDir(project);
+  }
+
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
     return new Observable(subscriber => {
       this._projectWatchObservables.set(project.id, subscriber);
 
-      this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword)
+      this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
         .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
 
       this._docker.listenContainerStatus(project.name)

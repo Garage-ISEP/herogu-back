@@ -1,8 +1,10 @@
+import { PhpInfo } from './php-info.entity';
 import { Collaborator } from './collaborator.entity';
 import { User } from './user.entity';
-import { Column, CreateDateColumn, JoinColumn, ManyToOne, OneToMany, RelationId, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, JoinColumn, ManyToOne, OneToMany, OneToOne, RelationId, UpdateDateColumn } from 'typeorm';
 import { Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { BaseEntity } from 'typeorm';
+import { MysqlInfo } from './mysql-info.entity';
 
 
 export enum ProjectType {
@@ -30,17 +32,13 @@ export class Project extends BaseEntity {
   @Column({ type: "enum", enum: ProjectType })
   public type: ProjectType;
 
-  @Column({ nullable: true})
-  public mysqlUser: string;
+  @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true })
+  @JoinColumn()
+  public mysqlInfo?: MysqlInfo;
 
-  @Column({ nullable: true})
-  public mysqlPassword: string;
-
-  @Column({ nullable: true })
-  public mysqlDatabase: string;
-
-  @Column()
-  public mysqlEnabled: boolean;
+  @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true })
+  @JoinColumn()
+  public phpInfo?: PhpInfo;
 
   @Column()
   public notificationsEnabled: boolean;
@@ -70,4 +68,8 @@ export class Project extends BaseEntity {
 
   @UpdateDateColumn()
   public updatedDate: Date;
+
+  public get mysqlEnabled() {
+    return this.mysqlInfo !== undefined;
+  }
 }

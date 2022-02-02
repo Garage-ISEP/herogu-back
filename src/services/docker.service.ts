@@ -221,6 +221,10 @@ export class DockerService implements OnModuleInit {
     const container = await this._docker.getContainer(id).inspect();
     container.State.Running ? await this._docker.getContainer(id).stop() : await this._docker.getContainer(id).start();
   }
+
+  public async getContainerFromName(projectName: string) {
+    return this._docker.getContainer(await this._getContainerIdFromName(projectName));
+  }
   /**
    * Get container info
    * Throw an error if the container doesn't exist
@@ -366,9 +370,9 @@ export class DockerService implements OnModuleInit {
 
   private _getEnv(project: Project): string[] {
     return [
-      `MYSQL_DATABASE=${project.mysqlDatabase}`,
-      `MYSQL_USER=${project.mysqlUser}`,
-      `MYSQL_PASSWORD=${project.mysqlPassword}`,
+      `MYSQL_DATABASE=${project.mysqlInfo?.database}`,
+      `MYSQL_USER=${project.mysqlInfo?.user}`,
+      `MYSQL_PASSWORD=${project.mysqlInfo?.password}`,
       `MYSQL_HOST=${process.env.MYSQL_HOST}`,
       ...Object.keys(project.env).map(key => key + "=" + project.env[key])
     ];
@@ -397,5 +401,37 @@ export class DockerService implements OnModuleInit {
     if (!infos)
       throw new NoMysqlContainerException();
     return infos;
+  }
+
+  /**
+   * Exec a command inside a container
+   * @param el the name of the container or the container object
+   * @param str the command to execute with its arguments
+   * @returns an Observable with the output stream of the command
+   */
+  public async containerExec(el: string | Dockerode.Container, ...str: string[]): Promise<Observable<string>> {
+    if (typeof el === "string")
+      el = await this.getContainerFromName(el);
+    const stream = (await (await el.exec({
+      Cmd: str,
+      AttachStdout: true,
+      AttachStderr: true,
+      Privileged: true,
+      Tty: true
+    })).start({
+      stdin: true,
+      hijack: true
+    }));
+    return new Observable(subscriber => {
+      stream.on("data", (chunk: string) => {
+        if (!stream.readable) return;
+        if (chunk.toString().toLowerCase().includes("error"))
+          subscriber.error(`Execution error : ${str.join(" ")}, ${chunk}`);
+        else
+          subscriber.next(chunk.toString());
+      })
+        .on("end", () => subscriber.complete())
+        .on("error", (e) => subscriber.error(`Execution error : ${str.join(" ")}, ${e}`));
+    });
   }
 }

@@ -4,6 +4,7 @@ import { Injectable, OnModuleInit } from "@nestjs/common";
 import { NoMysqlContainerException, ProjectCreationException } from 'src/errors/docker.exception';
 import { DbCredentials } from 'src/models/docker/docker-container.model';
 import { generatePassword } from 'src/utils/string.util';
+import { map, Observer } from 'rxjs';
 
 @Injectable()
 export class MysqlService implements OnModuleInit {
@@ -97,31 +98,22 @@ export class MysqlService implements OnModuleInit {
 
   /**
    * Execute bash commands in the mysql container
+   * If the keyword 'error' is detected in the command response, and error is thrown
+   * If the request is not just a existing database test, the mysql response is logged
    */
   private async _mysqlExec(...str: string[]) {
     const container = await this._docker.getMysqlContainer();
     return new Promise<void>(async (resolve, reject) => {
-      const stream = (await (await container.exec({
-        Cmd: str,
-        AttachStdout: true,
-        AttachStderr: true,
-        Privileged: true,
-        Tty: true
-      })).start({
-        stdin: true,
-        hijack: true
-      }));
-      stream.on("data", (chunk: string) => {
-        if (!stream.readable) return;
-        if (chunk.toString().toLowerCase().includes("error"))
-          reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-        else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
-          this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
-      })
-        .on("end", () => resolve())
-        .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
+      (await this._docker.containerExec(container, ...str)).subscribe({
+        complete: resolve,
+        error: reject,
+        next: chunk => {
+          if (chunk.toString().toLowerCase().includes("error"))
+            reject(`Execution error : ${str.join(" ")}, ${chunk}`);
+          else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
+            this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
+        }
+      });
     });
   }
-
-
 }

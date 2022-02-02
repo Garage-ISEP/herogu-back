@@ -1,16 +1,13 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { Subscriber } from 'rxjs';
 import { Collaborator, Role } from 'src/database/collaborator.entity';
 import { Project, ProjectType } from 'src/database/project.entity';
 import { User } from 'src/database/user.entity';
 import { CurrentUser } from 'src/decorators/current-user.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
-import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto } from './project.dto';
-import { ProjectStatusResponse } from 'src/models/project.model';
-import { MysqlService } from 'src/services/mysql.service';
+import { PhpInfo } from 'src/database/php-info.entity';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -55,6 +52,7 @@ export class ProjectController {
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
+      phpInfo: projectReq.type == "php" ? PhpInfo.create() : null,
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
