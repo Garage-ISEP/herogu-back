@@ -18,8 +18,12 @@ export class AppLogger extends Logger {
   public verbose(...message: any[]) {
     super.verbose(message.join(" "), this.getCaller());
   }
-  public error(...message: any[]) {
-    super.error(this.getCaller() + ': ', message.slice(0, -1).join(" "), message[message.length - 1]);
+  public error(...message: (string | Error)[]) {
+    const error = message[message.length - 1];
+    if (error instanceof Error)
+      super.error(message.slice(0, -1), error.stack, this.getCaller());
+    else
+      super.error(message, null, this.getCaller());
   }
 
   private getCaller(): string {
