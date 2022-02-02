@@ -3,22 +3,22 @@ import { Injectable, Logger, Module } from '@nestjs/common';
 @Injectable()
 export class AppLogger extends Logger {
 
-  info(...message: any[]) {
+  public info(...message: any[]) {
     super.log(message.join(" "), this.getCaller());
   }
-  log(...message: any[]) {
+  public log(...message: any[]) {
     super.log(message.join(" "), this.getCaller());
   }
-  warn(...message: any[]) {
+  public warn(...message: any[]) {
     super.warn(message.join(" "), this.getCaller());
   }
-  debug(...message: any[]) {
+  public debug(...message: any[]) {
     super.debug(message.join(" "), this.getCaller())
   }
-  verbose(...message: any[]) {
+  public verbose(...message: any[]) {
     super.verbose(message.join(" "), this.getCaller());
   }
-  error(...message: any[]) {
+  public error(...message: any[]) {
     super.error(message.slice(0, -1).join(" "), message[message.length - 1], this.getCaller());
   }
 
