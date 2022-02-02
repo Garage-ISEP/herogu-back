@@ -19,7 +19,7 @@ export class AppLogger extends Logger {
     super.verbose(message.join(" "), this.getCaller());
   }
   public error(...message: any[]) {
-    super.error(message.slice(0, -1).join(" "), message[message.length - 1], this.getCaller());
+    super.error(this.getCaller() + ': ', message.slice(0, -1).join(" "), message[message.length - 1]);
   }
 
   private getCaller(): string {
