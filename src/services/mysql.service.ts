@@ -1,7 +1,8 @@
+import { MysqlInfo } from 'src/database/mysql-info.entity';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { NoMysqlContainerException, ProjectCreationException } from 'src/errors/docker.exception';
+import { NoMysqlContainerException, ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
 import { DbCredentials } from 'src/models/docker/docker-container.model';
 import { generatePassword } from 'src/utils/string.util';
 import { map, Observer } from 'rxjs';
@@ -37,19 +38,14 @@ export class MysqlService implements OnModuleInit {
  * Create a mysql db with user
  * An optional sql fileName can be provided to hydrate the db 
  */
-  public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
-    const creds = new DbCredentials(
-      dbName || generatePassword(6) + "_" + projectName.substring(0, 10),
-      username || generatePassword(6) + "_" + projectName.substring(0, 10),
-      password || generatePassword()
-    );
+  public async createMysqlDBWithUser(creds: MysqlInfo): Promise<MysqlInfo> {
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8;`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.username}' IDENTIFIED BY '${creds.password}';`);
-      await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}';`);
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.database} CHARACTER SET utf8;`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.user}' IDENTIFIED BY '${creds.password}';`);
+      await this._mysqlQuery(`GRANT ALL ON ${creds.database}.* TO '${creds.user}';`);
       await this._mysqlQuery("FLUSH PRIVILEGES;");
-      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.dbName);
-      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.dbName, creds.username, creds.password);
+      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.database);
+      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.database, creds.user, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
@@ -57,14 +53,23 @@ export class MysqlService implements OnModuleInit {
     }
   }
 
-  public async resetMysqlDB(projectName: string, dbName: string, username: string, password: string) {
+  public async resetMysqlDB(creds: MysqlInfo) {
     try {
-      await this._mysqlQuery(`DROP USER IF EXISTS '${username}';`);
-      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${dbName};`);
-      await this.createMysqlDBWithUser(projectName, dbName, username, password);
+      await this.deleteMysqlDB(creds);
+      await this.createMysqlDBWithUser(creds);
     } catch (e) {
       this._logger.error(e);
       throw new ProjectCreationException("Error while resetting DB");
+    }
+  }
+
+  public async deleteMysqlDB(creds: MysqlInfo) {
+    try {
+      await this._mysqlQuery(`DROP USER IF EXISTS '${creds.user}';`);
+      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${creds.database};`);
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectDeletionException("Error while deleting DB");
     }
   }
 

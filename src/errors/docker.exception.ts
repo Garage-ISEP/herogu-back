@@ -6,6 +6,11 @@ export class ProjectCreationException extends InternalServerErrorException {
   }
 }
 
+export class ProjectDeletionException extends InternalServerErrorException {
+  constructor(message: string, public code = 0) {
+    super({ reason: message, code });
+  }
+}
 export class ProjectStartingException extends InternalServerErrorException {
   constructor() {
     super({ code: 1 });

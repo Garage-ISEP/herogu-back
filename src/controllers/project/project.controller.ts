@@ -8,6 +8,7 @@ import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto } from './project.dto';
 import { PhpInfo } from 'src/database/php-info.entity';
+import { MysqlInfo } from 'src/database/mysql-info.entity';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -53,6 +54,7 @@ export class ProjectController {
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
       phpInfo: projectReq.type == "php" ? PhpInfo.create() : null,
+      mysqlInfo: projectReq.mysqlEnabled ? new MysqlInfo(projectReq.name) : null,
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR

@@ -41,6 +41,8 @@ export class ProjectDashboardController {
   public async deleteProject(@CurrentProject() project: Project) {
     await this._docker.removeContainerFromName(project.name);
     await this._docker.removeImageFromName(project.name);
+    if (project.mysqlInfo)
+      await this._mysql.deleteMysqlDB(project.mysqlInfo);
     for (const collab of project.collaborators)
       await collab.remove();
     await project.remove();
@@ -82,12 +84,7 @@ export class ProjectDashboardController {
   public async linkToMysql(@CurrentProject() project: Project, @Body() body: MysqlLinkDto) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
-      const creds = await this._mysql.createMysqlDBWithUser(project.name);
-      project.mysqlInfo ??= MysqlInfo.create({
-        database: creds.dbName,
-        user: creds.username,
-        password: creds.password
-      });
+      await this._mysql.createMysqlDBWithUser(project.mysqlInfo);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql"));
       if (!this._mysql.checkMysqlConnection(project.mysqlInfo.database, project.mysqlInfo.user, project.mysqlInfo.password))
         this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
