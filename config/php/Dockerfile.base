@@ -51,6 +51,7 @@ RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache nginx
 # Copy php configurations
 COPY config/php/www.conf /etc/php8/php-fpm.d/www.conf
 COPY config/php/php.ini /etc/php/php.ini
+COPY config/php/php.ini /etc/php8/php.ini
 
 # Enable php and nginx service
 RUN rc-update add php-fpm8 default
