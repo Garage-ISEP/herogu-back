@@ -1,9 +1,6 @@
 import { Project, ProjectType } from './../database/project.entity';
 import { DockerService } from './docker.service';
 import { Injectable } from "@nestjs/common";
-import strTemplate from 'string-template';
-import * as fs from "fs/promises";
-import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class ConfigService {
@@ -14,39 +11,53 @@ export class ConfigService {
 
   /**
    * Update the Nginx http root path from the project configuration
-   * Change the Nginx Configuration and restart the service
+   * Change the Nginx Configuration and reload the service
    */
   public async updateHttpRootDir(project: Project) {
-    const dir = project.type === ProjectType.NGINX ? "nginx" : "php";
-    const nginxConfig = strTemplate((await fs.readFile(`./config/${dir}/nginx.conf`)).toString(), {
-      PROJECT_ROOT: project.rootDir.substring(1)  //We remove leading slash with substring
-    });
-    await this._updateFileInContainer(project.name, `/etc/nginx/nginx.conf`, nginxConfig);
-    this._docker.containerExec(project.name, `rc-service nginx restart`);
+    //We remove leading slash with substring
+    await this._sedCommand(project.name,
+      '/etc/nginx/nginx.conf',
+      `s/[ \t]*root \/var\/www\/html\/.*;/\t\troot \/var\/www\/html\/${project.rootDir.substring(1)};/g`
+    );
+    await this._docker.asyncContainerExec(project.name, 'rc-service', 'nginx', 'reload');
   }
+
   /**
    * Update the PHP log level from the project configuration
    * Change the PHP Configuration and restart the service
    */
   public async updatePhpLogLevel(project: Project) {
-    //We replace all ${} with {} for the string-template lib
-    let phpConfig = (await fs.readFile(`./config/php/php.ini`)).toString().replace(/\${(?=.+})/g, '{');
-    phpConfig = strTemplate(phpConfig, {
-      PHP_ERROR_REPORTING: project.phpInfo.logLevel.toString(),
-      PHP_DISPLAY_ERROR: project.phpInfo.logEnabled ? "On" : "Off"
+    await this._replacePhpIniValues(project.name, {
+      'error_reporting': project.phpInfo.logLevel.toString(),
+      'display_errors': project.phpInfo.logEnabled ? "On" : "Off"
     });
-    await this._updateFileInContainer(project.name, `/etc/php/php.ini`, phpConfig);
-    this._docker.containerExec(project.name, `rc-service php-fpm restart`);
+    await this._docker.asyncContainerExec(project.name, 'rc-service', 'php-fpm8', 'reload');
   }
-
 
   /**
-   * Update a file in a container
+   * @description Replace a values from keys in the php.ini file
    * @param containerName the name of the container
-   * @param filePath the path of the file to update
-   * @param content the content of the file
-   */
-  private async _updateFileInContainer(projectName: string, filePath: string, content: string) {
-    await lastValueFrom(await this._docker.containerExec(projectName, `echo "${content}" > ${filePath}`))
+   * @param entries the key/value pairs to replace
+  */
+  private async _replacePhpIniValues(projectName: string, entries: { [key: string]: string }) {
+    await this._sedCommand(projectName,
+      '/etc/php8/php.ini',
+      ...Object.entries(entries).map(([key, value]) => `s/^[^;]*${key} =.*/${key} = ${value}/g`)
+    );
   }
+
+  /**
+   * @description execute multiple sed regex commands on the container and file given
+   * @param projectName The name of the container
+   * @param file The file to edit
+   * @param commands The command list to execute
+   */
+  private async _sedCommand(projectName: string, file: string, ...commands: string[]) {
+    await this._docker.asyncContainerExec(
+      projectName, 'sed', '-i',
+      ...commands.map(command => `-e ${command}`),
+      file
+    );
+  }
+
 } 
