@@ -1,3 +1,4 @@
+import { CacheMap } from './../utils/cache.util';
 import { Project } from 'src/database/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
@@ -12,7 +13,8 @@ export class DockerService implements OnModuleInit {
 
   private readonly _docker = new Dockerode({ socketPath: process.env.DOCKER_HOST });
   private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
-
+  //Stores the container ids from the project name in cache for 10 minutes
+  private readonly _containerIdMap: CacheMap<string, string> = new CacheMap(60_000 * 10);
   constructor(
     private readonly _logger: AppLogger,
     private readonly _mail: MailerService,
@@ -41,6 +43,7 @@ export class DockerService implements OnModuleInit {
     if (containerId) {
       try {
         await this._removeContainer(containerId);
+        this._containerIdMap.delete(name);
         return true;
       } catch (e) { return false; }
     }
@@ -54,6 +57,7 @@ export class DockerService implements OnModuleInit {
     } catch (e) { }
     if (containerId) {
       await this._removeContainer(containerId);
+      this._containerIdMap.delete(name);
     }
   }
 
@@ -144,9 +148,9 @@ export class DockerService implements OnModuleInit {
           Labels: this._getLabels(project.name) as any,
           HostConfig: {
             RestartPolicy: { Name: "always" },
-            PortBindings: {
-              "8081/tcp": [{ HostPort: "80" }],
-            },
+            PortBindings: process.env.NODE_ENV == "dev" ? {
+              "80/tcp": [{ HostPort: "8081" }],
+            } : null,
           },
           ExposedPorts: {
             '80': {}
@@ -220,6 +224,10 @@ export class DockerService implements OnModuleInit {
     const id = await this._getContainerIdFromName(name);
     const container = await this._docker.getContainer(id).inspect();
     container.State.Running ? await this._docker.getContainer(id).stop() : await this._docker.getContainer(id).start();
+  }
+
+  public async restartContainer(name: string) {
+    await (await this.getContainerFromName(name)).restart();
   }
 
   public async getContainerFromName(projectName: string) {
@@ -319,12 +327,19 @@ export class DockerService implements OnModuleInit {
    * Get a container from its name
    */
   private async _getContainerIdFromName(name: string): Promise<string | null> {
-    name = "/" + name;
+    if (this._containerIdMap.has(name))
+      return this._containerIdMap.get(name);
+    const containerName = "/" + name;
     try {
       for (const el of await this._docker.listContainers({ all: true })) {
-        if (el.Names.includes(name)) return el.Id;
+        if (el.Names.includes(containerName)) {
+          this._containerIdMap.set(containerName, el.Id);
+          return el.Id;
+        }
       }
     } catch (e) {
+      if (this._containerIdMap.has(name))
+        this._containerIdMap.delete(name);
       this._logger.error(e);
     }
     throw new DockerContainerNotFoundException("No container found with name " + name);
@@ -409,6 +424,7 @@ export class DockerService implements OnModuleInit {
    * @returns an Observable with the output stream of the command
    */
   public async containerExec(el: string | Dockerode.Container, ...str: string[]): Promise<Observable<string>> {
+    this._logger.log(`Exec: [${(typeof el === 'string' ? el : el.id)}] [${str.join(" ")}]`);
     if (typeof el === "string")
       el = await this.getContainerFromName(el);
     const stream = (await (await el.exec({
@@ -422,15 +438,25 @@ export class DockerService implements OnModuleInit {
       hijack: true
     }));
     return new Observable(subscriber => {
-      stream.on("data", (chunk: string) => {
+      stream.on("data", (chunk: Buffer) => {
         if (!stream.readable) return;
-        if (chunk.toString().toLowerCase().includes("error"))
-          subscriber.error(`Execution error : ${str.join(" ")}, ${chunk}`);
-        else
-          subscriber.next(chunk.toString());
+        // IDK why but the first 8 bytes are always 01 00 00 00 00 00 00 00 and represent nothing
+        subscriber.next(chunk.slice(8).toString());
       })
         .on("end", () => subscriber.complete())
         .on("error", (e) => subscriber.error(`Execution error : ${str.join(" ")}, ${e}`));
     });
+  }
+
+  public async asyncContainerExec(el: string | Dockerode.Container, ...str: string[]): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      let chunks = "";
+      const stream = await this.containerExec(el, ...str);
+      stream.subscribe({
+        next: (chunk: string) => chunks += chunk,
+        error: (e) => reject(e),
+        complete: () => resolve(chunks)
+      });
+    })
   }
 }
