@@ -17,10 +17,11 @@ export class ConfigService {
    * @summary Change the Nginx Configuration and reload the service
    */
   public async updateHttpRootDir(project: Project) {
-    //We remove leading slash with substring
+    //We remove leading slash with substring and we escape all '/' to '\/'
+    const path = project.nginxInfo.rootDir.substring(1).replace(/\//g, '\\/');
     await this._sedCommand(project.name,
       '/etc/nginx/nginx.conf',
-      `s/[ \t]*root \/var\/www\/html\/.*;/\t\troot \/var\/www\/html\/${project.rootDir.substring(1)};/g`
+      `s/[ \\t]*root \\/var\\/www\\/html\\/.*;/\\t\\troot \\/var\\/www\\/html\\/${path};/g`
     );
     await this._docker.asyncContainerExec(project.name, 'rc-service', 'nginx', 'reload');
   }
@@ -46,7 +47,8 @@ export class ConfigService {
   */
   private async _replacePhpIniValues(projectName: string, entries: { [key: string]: string }) {
     for (const key in entries)
-      entries[key] = entries[key].replace(/\&/g, '\\&');  //The '\' is escaped 2 times for the docker exec input and the sed command
+      entries[key] = entries[key].replace(/\&/g, '\\&');  //The '\' is escaped 2 times for the string input and the sed command
+      
     await this._sedCommand(projectName,
       '/etc/php8/php.ini',
       ...Object.entries(entries).map(([key, value]) => `s/^[^;]*${key} =.*/${key} = ${value}/g`)

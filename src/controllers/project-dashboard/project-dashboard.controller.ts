@@ -55,7 +55,7 @@ export class ProjectDashboardController {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "github"));
       if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
-        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, project.rootDir);
+        project.shas = await this._github.addOrUpdateConfiguration(project);
         await project.save();
       }
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));
@@ -108,8 +108,9 @@ export class ProjectDashboardController {
   }
 
   @Patch('http-root-url')
-  public async updateHttpRootUrl(@CurrentProject() project: Project, @Body("httpRootUrl") rootDir: string) {
-    project.rootDir = rootDir;
+  public async updateHttpRootUrl(@CurrentProject() project: Project, @Body("httpRootUrl") rootDir: string, @Body("httpRootUrlSha") rootDirSha: string) {
+    project.nginxInfo.rootDir = rootDir;
+    project.nginxInfo.rootDirSha = rootDirSha;
     await project.save();
     await this._config.updateHttpRootDir(project);
   }

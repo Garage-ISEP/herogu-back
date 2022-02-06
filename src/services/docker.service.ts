@@ -106,7 +106,7 @@ export class DockerService implements OnModuleInit {
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
     if (!await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
       this._logger.log("Project configuration is not valid, resetting configuration");
-      project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type, project.rootDir);
+      project.shas = await this._github.addOrUpdateConfiguration(project);
       await project.save();
     }
     try {

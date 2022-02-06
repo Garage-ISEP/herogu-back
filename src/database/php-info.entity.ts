@@ -14,7 +14,7 @@ export class PhpInfo extends BaseEntity {
   @PrimaryGeneratedColumn()
   public id: number;
 
-  @OneToOne(() => Project, { primary: true, cascade: true, onDelete: "CASCADE" })
+  @OneToOne(() => Project, { primary: true })
   public project: Project;
 
   @Column({ enum: PhpLogLevel, default: PhpLogLevel.All })

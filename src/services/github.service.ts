@@ -78,11 +78,11 @@ export class GithubService implements OnModuleInit {
   /**
    * Create the repo and returns the lists of shas generated from the files
    */
-  public async addOrUpdateConfiguration(url: string, repoId: number, type: ProjectType, rootDir = ''): Promise<string[]> {
-    const [owner, repo] = url.split("/").slice(-2);
+  public async addOrUpdateConfiguration(project: Project): Promise<string[]> {
+    const [owner, repo] = project.githubLink.split("/").slice(-2);
 
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    return await this._addFiles(octokit, owner, repo, type, rootDir);
+    const octokit = await this._client.getInstallationOctokit(project.repoId);
+    return await this._addFiles(octokit, owner, repo, project.type, project.nginxInfo.rootDir);
   }
 
   public async verifyInstallation(url: string) {

@@ -17,7 +17,7 @@ export class MysqlInfo extends BaseEntity {
   @PrimaryGeneratedColumn()
   public id: number;
 
-  @OneToOne(() => Project, project => project.mysqlInfo, { primary: true, cascade: true, onDelete: "CASCADE" })
+  @OneToOne(() => Project, project => project.mysqlInfo, { primary: true })
   public project: Project;
 
   @Column()

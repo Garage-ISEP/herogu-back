@@ -1,3 +1,4 @@
+import { NginxInfo } from './nginx-info.entity';
 import { PhpInfo } from './php-info.entity';
 import { Collaborator } from './collaborator.entity';
 import { User } from './user.entity';
@@ -32,22 +33,23 @@ export class Project extends BaseEntity {
   @Column({ type: "enum", enum: ProjectType })
   public type: ProjectType;
 
-  @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true })
+  @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
   @JoinColumn()
   public mysqlInfo?: MysqlInfo;
 
-  @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true })
+  @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
   @JoinColumn()
   public phpInfo?: PhpInfo;
+
+  @OneToOne(() => NginxInfo, nginxInfo => nginxInfo.project, { cascade: ["insert", "recover", "update", "remove"] })
+  @JoinColumn()
+  public nginxInfo: NginxInfo;
 
   @Column()
   public notificationsEnabled: boolean;
 
   @Column({ nullable: true})
   public lastBuild?: Date;
-
-  @Column({ default: "" })
-  public rootDir: string;
 
   @Column("json", { default: "{}" })
   public env: { [key: string]: string };
@@ -59,7 +61,7 @@ export class Project extends BaseEntity {
   @RelationId((project: Project) => project.creator)
   public creatorId: string;
 
-  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: true, onDelete: "CASCADE" })
+  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"], onDelete: "CASCADE" })
   @JoinColumn()
   public collaborators: Collaborator[];
 

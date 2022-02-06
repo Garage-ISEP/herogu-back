@@ -9,6 +9,7 @@ import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto } from './project.dto';
 import { PhpInfo } from 'src/database/php-info.entity';
 import { MysqlInfo } from 'src/database/mysql-info.entity';
+import { NginxInfo } from 'src/database/nginx-info.entity';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -53,8 +54,9 @@ export class ProjectController {
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
       repoId: await this._github.getRepoId(projectReq.githubLink),
-      phpInfo: projectReq.type == "php" ? await PhpInfo.create().save() : null,
-      mysqlInfo: projectReq.mysqlEnabled ? await new MysqlInfo(projectReq.name).save() : null,
+      phpInfo: projectReq.type == "php" ? PhpInfo.create() : null,
+      mysqlInfo: projectReq.mysqlEnabled ? new MysqlInfo(projectReq.name) : null,
+      nginxInfo: NginxInfo.create({ rootDir: projectReq.rootDir, rootDirSha: projectReq.rootDirSha }),
       collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
         user,
         role: Role.COLLABORATOR
