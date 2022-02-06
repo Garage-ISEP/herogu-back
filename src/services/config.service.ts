@@ -35,11 +35,15 @@ export class ConfigService {
   }
 
   /**
-   * @description Replace a values from keys in the php.ini file
+   * @description Replace a values from keys in the php.ini file and escape the '&' char for the sed command
+   * @description Note: The '\' char should also be escaped if needed
+   * @see https://unix.stackexchange.com/questions/32907/what-characters-do-i-need-to-escape-when-using-sed-in-a-sh-script
    * @param containerName the name of the container
    * @param entries the key/value pairs to replace
   */
   private async _replacePhpIniValues(projectName: string, entries: { [key: string]: string }) {
+    for (const key in entries)
+      entries[key] = entries[key].replace(/\&/g, '\\&');  //The '\' is escaped 2 times for the docker exec input and the sed command
     await this._sedCommand(projectName,
       '/etc/php8/php.ini',
       ...Object.entries(entries).map(([key, value]) => `s/^[^;]*${key} =.*/${key} = ${value}/g`)
