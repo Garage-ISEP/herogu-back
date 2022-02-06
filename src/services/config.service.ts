@@ -2,6 +2,9 @@ import { Project, ProjectType } from './../database/project.entity';
 import { DockerService } from './docker.service';
 import { Injectable } from "@nestjs/common";
 
+/**
+ * @description Service for managing configuration inside docker containers such as mysql or php options
+ */
 @Injectable()
 export class ConfigService {
 
@@ -10,8 +13,8 @@ export class ConfigService {
   ) { }
 
   /**
-   * Update the Nginx http root path from the project configuration
-   * Change the Nginx Configuration and reload the service
+   * @description Update the Nginx http root path from the project configuration
+   * @summary Change the Nginx Configuration and reload the service
    */
   public async updateHttpRootDir(project: Project) {
     //We remove leading slash with substring
@@ -23,8 +26,8 @@ export class ConfigService {
   }
 
   /**
-   * Update the PHP log level from the project configuration
-   * Change the PHP Configuration and restart the service
+   * @description Update the PHP log level from the project configuration
+   * @summary Change the PHP Configuration and restart the service
    */
   public async updatePhpLogLevel(project: Project) {
     await this._replacePhpIniValues(project.name, {
