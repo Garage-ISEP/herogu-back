@@ -23,7 +23,7 @@ export class AppLogger extends Logger {
     if (error instanceof Error)
       super.error(message.slice(0, -1), error.stack, this.getCaller());
     else
-      super.error(message, null, this.getCaller());
+      super.error(message.join(" "), "", this.getCaller());
   }
 
   private getCaller(): string {
