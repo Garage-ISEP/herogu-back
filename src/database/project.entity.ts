@@ -34,15 +34,12 @@ export class Project extends BaseEntity {
   public type: ProjectType;
 
   @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
-  @JoinColumn()
   public mysqlInfo?: MysqlInfo;
 
   @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
-  @JoinColumn()
   public phpInfo?: PhpInfo;
 
   @OneToOne(() => NginxInfo, nginxInfo => nginxInfo.project, { cascade: ["insert", "recover", "update", "remove"] })
-  @JoinColumn()
   public nginxInfo: NginxInfo;
 
   @Column()
@@ -50,9 +47,6 @@ export class Project extends BaseEntity {
 
   @Column({ nullable: true})
   public lastBuild?: Date;
-
-  @Column("json", { default: "{}" })
-  public env: { [key: string]: string };
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()

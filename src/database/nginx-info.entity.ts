@@ -1,13 +1,11 @@
 import { Project } from './project.entity';
-import { BaseEntity, Column, Entity, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { BaseEntity, Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 export class NginxInfo extends BaseEntity {
   
-  @PrimaryGeneratedColumn()
-  public id: number;
-
   @OneToOne(() => Project, project => project.nginxInfo, { primary: true })
+  @JoinColumn()
   public project: Project;
   
   @Column({ default: "" })

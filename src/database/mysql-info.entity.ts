@@ -14,10 +14,8 @@ export class MysqlInfo extends BaseEntity {
     }
   }
 
-  @PrimaryGeneratedColumn()
-  public id: number;
-
   @OneToOne(() => Project, project => project.mysqlInfo, { primary: true })
+  @JoinColumn()
   public project: Project;
 
   @Column()

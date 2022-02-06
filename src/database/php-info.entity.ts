@@ -11,10 +11,8 @@ export enum PhpLogLevel {
 @Entity()
 export class PhpInfo extends BaseEntity {
 
-  @PrimaryGeneratedColumn()
-  public id: number;
-
   @OneToOne(() => Project, { primary: true })
+  @JoinColumn()
   public project: Project;
 
   @Column({ enum: PhpLogLevel, default: PhpLogLevel.All })
@@ -22,4 +20,7 @@ export class PhpInfo extends BaseEntity {
 
   @Column({ default: true })
   public logEnabled: boolean;
+
+  @Column("json", { default: "{}" })
+  public env: { [key: string]: string };
 }

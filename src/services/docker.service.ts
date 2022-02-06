@@ -388,7 +388,7 @@ export class DockerService implements OnModuleInit {
       `MYSQL_USER=${project.mysqlInfo?.user}`,
       `MYSQL_PASSWORD=${project.mysqlInfo?.password}`,
       `MYSQL_HOST=${process.env.MYSQL_HOST}`,
-      ...Object.keys(project.env).map(key => key + "=" + project.env[key])
+      ...Object.keys(project.phpInfo?.env || {}).map(key => key + "=" + project.phpInfo.env[key])
     ];
   }
 
