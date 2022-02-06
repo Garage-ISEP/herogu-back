@@ -1,15 +1,14 @@
+import { Container } from 'dockerode';
 import { MysqlInfo } from 'src/database/mysql-info.entity';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { NoMysqlContainerException, ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
-import { DbCredentials } from 'src/models/docker/docker-container.model';
-import { generatePassword } from 'src/utils/string.util';
-import { map, Observer } from 'rxjs';
+import { ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
 
 @Injectable()
 export class MysqlService implements OnModuleInit {
 
+  private _mysqlContainer: Container;
   constructor(
     private readonly _docker: DockerService,
     private readonly _logger: AppLogger
@@ -18,10 +17,10 @@ export class MysqlService implements OnModuleInit {
   public async onModuleInit() {
     try {
       this._logger.log("Checking Mysql container...");
-      await this._docker.getMysqlContainerInfo();
+      this._mysqlContainer = await this._docker.getMysqlContainer();
       this._logger.log("Mysql container is running");
     } catch (e) {
-      this._logger.error("Mysql container not started", e);
+      this._logger.error("Mysql container not started");
     }
   }
 
@@ -107,9 +106,8 @@ export class MysqlService implements OnModuleInit {
    * If the request is not just a existing database test, the mysql response is logged
    */
   private async _mysqlExec(...str: string[]) {
-    const container = await this._docker.getMysqlContainer();
     return new Promise<void>(async (resolve, reject) => {
-      (await this._docker.containerExec(container, ...str)).subscribe({
+      (await this._docker.containerExec(this._mysqlContainer, ...str)).subscribe({
         complete: resolve,
         error: reject,
         next: chunk => {

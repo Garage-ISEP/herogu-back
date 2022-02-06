@@ -406,15 +406,13 @@ export class DockerService implements OnModuleInit {
   }
 
   public async getMysqlContainer() {
-    const mysqlId = (await this.getMysqlContainerInfo()).Id;
-    return this._docker.getContainer(mysqlId);
-  }
-
-  public async getMysqlContainerInfo(): Promise<ContainerInfo> {
-    const infos = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql");
-    if (!infos)
+    try {
+      const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
+      return this._docker.getContainer(mysqlId);
+    } catch (e) {
+      this._logger.error("Mysql Container not found");
       throw new NoMysqlContainerException();
-    return infos;
+    }
   }
 
   /**
