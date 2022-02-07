@@ -14,7 +14,7 @@ export class MysqlInfo extends BaseEntity {
     }
   }
 
-  @OneToOne(() => Project, project => project.mysqlInfo, { primary: true })
+  @OneToOne(() => Project, project => project.mysqlInfo, { primary: true, onDelete: 'CASCADE' })
   @JoinColumn()
   public project: Project;
 

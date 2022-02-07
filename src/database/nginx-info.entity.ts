@@ -4,7 +4,7 @@ import { BaseEntity, Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColum
 @Entity()
 export class NginxInfo extends BaseEntity {
   
-  @OneToOne(() => Project, project => project.nginxInfo, { primary: true })
+  @OneToOne(() => Project, project => project.nginxInfo, { primary: true, onDelete: 'CASCADE' })
   @JoinColumn()
   public project: Project;
   

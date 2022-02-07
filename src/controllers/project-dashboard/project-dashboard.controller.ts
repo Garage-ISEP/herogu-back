@@ -43,8 +43,6 @@ export class ProjectDashboardController {
     await this._docker.removeImageFromName(project.name);
     if (project.mysqlInfo)
       await this._mysql.deleteMysqlDB(project.mysqlInfo);
-    for (const collab of project.collaborators)
-      await collab.remove();
     await project.remove();
     return { success: true };
   }

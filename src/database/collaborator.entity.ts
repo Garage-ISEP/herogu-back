@@ -13,13 +13,13 @@ export class Collaborator extends BaseEntity {
   @PrimaryGeneratedColumn()
   public id: number;
 
-  @ManyToOne(() => Project, { cascade: ["insert", "recover", "update"] })
+  @ManyToOne(() => Project, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE" })
   public project: Project;
 
   @RelationId((collaborator: Collaborator) => collaborator.project)
   public projectId: string;
 
-  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
+  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE" })
   @JoinColumn()
   public user: User;
 

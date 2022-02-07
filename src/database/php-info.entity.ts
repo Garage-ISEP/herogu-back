@@ -11,7 +11,7 @@ export enum PhpLogLevel {
 @Entity()
 export class PhpInfo extends BaseEntity {
 
-  @OneToOne(() => Project, { primary: true })
+  @OneToOne(() => Project, { primary: true, onDelete: 'CASCADE' })
   @JoinColumn()
   public project: Project;
 
