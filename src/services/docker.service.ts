@@ -1,5 +1,5 @@
 import { CacheMap } from './../utils/cache.util';
-import { Project } from 'src/database/project.entity';
+import { Project, ProjectType } from 'src/database/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
@@ -35,28 +35,13 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  public async tryRemoveContainerFromName(name: string) {
+  public async removeContainerFromName(name: string, removeVolumes = false) {
     let containerId: string;
     try {
       containerId = await this._getContainerIdFromName(name);
     } catch (e) { }
     if (containerId) {
-      try {
-        await this._removeContainer(containerId);
-        this._containerIdMap.delete(name);
-        return true;
-      } catch (e) { return false; }
-    }
-  }
-
-
-  public async removeContainerFromName(name: string) {
-    let containerId: string;
-    try {
-      containerId = await this._getContainerIdFromName(name);
-    } catch (e) { }
-    if (containerId) {
-      await this._removeContainer(containerId);
+      await this._removeContainer(containerId, removeVolumes);
       this._containerIdMap.delete(name);
     }
   }
@@ -138,7 +123,6 @@ export class DockerService implements OnModuleInit {
       // this._mail.sendErrorMail(this, "Error removing container : ", e);
       return;
     }
-
     let error: string;
     for (let i = 0; i < 3; i++) {
       try {
@@ -153,11 +137,19 @@ export class DockerService implements OnModuleInit {
             PortBindings: process.env.NODE_ENV == "dev" ? {
               "80/tcp": [{ HostPort: "8081" }],
             } : null,
+            Mounts: [{
+              Source: `${project.name}-config`,
+              Target: '/etc',
+              Type: "volume"
+            }]
           },
           ExposedPorts: {
             '80': {}
           },
           Env: this._getEnv(project),
+          Volumes: {
+            [`${project.name}-config`]: {},
+          },
           NetworkingConfig: {
             EndpointsConfig: {
               web: { Aliases: ["web"] },
@@ -169,8 +161,7 @@ export class DockerService implements OnModuleInit {
         return container;
       } catch (e) {
         error = e;
-        this._logger.error(e);
-        this._logger.log("Impossible to create or start the container, trying one more time");
+        this._logger.error("Impossible to create or start the container, trying one more time", e);
       }
     }
     this._logger.log("Container not created or started after 3 times, incident will be reported.");
@@ -360,7 +351,7 @@ export class DockerService implements OnModuleInit {
   /**
    * Stop and remove container
    */
-  private async _removeContainer(id: string) {
+  private async _removeContainer(id: string, removeVolumes = false) {
     const container = this._docker.getContainer(id);
     try {
       await container.stop();
@@ -368,6 +359,20 @@ export class DockerService implements OnModuleInit {
       this._logger.info("Container cannot stop, trying to remove directly...");
     }
     await container.remove({ force: true });
+    if (removeVolumes) {
+      for (const volume of await this._getContainerVolumes(id)) {
+        try {
+          await volume.remove();
+        } catch (e) {
+          this._logger.error("Could not remove volume", volume.name, e);
+        }
+      }
+    }
+  }
+
+  private async _getContainerVolumes(id: string): Promise<Dockerode.Volume[]> {
+    const container = this._docker.getContainer(id);
+    return (await container.inspect()).Mounts.filter(el => el.Name).map(el => this._docker.getVolume(el.Name));
   }
 
   public async getMysqlContainer() {

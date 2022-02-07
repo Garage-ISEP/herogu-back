@@ -39,7 +39,7 @@ export class ProjectDashboardController {
   @Delete()
   @UseGuards(ProjectGuard)
   public async deleteProject(@CurrentProject() project: Project) {
-    await this._docker.removeContainerFromName(project.name);
+    await this._docker.removeContainerFromName(project.name, true);
     await this._docker.removeImageFromName(project.name);
     if (project.mysqlInfo)
       await this._mysql.deleteMysqlDB(project.mysqlInfo);
@@ -71,6 +71,7 @@ export class ProjectDashboardController {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "docker"));
       await this._docker.launchContainerFromConfig(project);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
+      // this._emitProject(project, new ProjectStatusResponse(ContainerStatus.Running, "docker"));
     } catch (e) {
       this._logger.error(e);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "docker"));

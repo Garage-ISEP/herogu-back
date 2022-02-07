@@ -117,6 +117,6 @@ export class MysqlService implements OnModuleInit {
             this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
         }
       });
-    }).catch(e => console.error(e));
+    });
   }
 }

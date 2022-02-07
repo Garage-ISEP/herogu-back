@@ -24,7 +24,7 @@ export class CreateProjectDto {
   public rootDir: string;
 
   @IsOptional()
-  @IsHash('sha256')
+  @IsHash('sha1')
   public rootDirSha: string;
 
   @IsObject()
