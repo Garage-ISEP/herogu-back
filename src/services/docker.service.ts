@@ -102,6 +102,8 @@ export class DockerService implements OnModuleInit {
    * If the image doesn't exist, it'll be pulled from the given url
    * If a container with the same name already exist the former container is stopped and removed
    * In case of failure, it retries 3 times
+   * @param project the project with the config we have to deploy
+   * @param force if true, the container will be recreated even if it already exists
    */
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
     if (!await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
@@ -173,43 +175,6 @@ export class DockerService implements OnModuleInit {
     }
     this._logger.log("Container not created or started after 3 times, incident will be reported.");
     this._mail.sendErrorMail(this, "Error starting new container : ", error);
-  }
-
-
-  /**
-   * Recreate a container from its ID
-   * @param containerId 
-   */
-  public async recreateContainer(containerId: string) {
-    try {
-      let oldContainer: Container = this._docker.getContainer(containerId);
-      const oldContainerInfo = await oldContainer.inspect();
-
-      this._logger.log("Stopping container");
-      await oldContainer.stop().catch();
-
-      this._logger.log("Removing container");
-      await oldContainer.remove({ force: true });
-      // this._logger.log("Available images for this container : ", (await this._docker.listImages()));
-      this._logger.log("Recreating container with image :", oldContainerInfo.Name);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const container = await this._docker.createContainer({
-        ...oldContainerInfo.Config,
-        name: oldContainerInfo.Name,
-        Image: oldContainerInfo.Name,
-        NetworkingConfig: {
-          EndpointsConfig: oldContainerInfo.NetworkSettings.Networks,
-        },
-        HostConfig: {
-          Binds: oldContainerInfo.Mounts.map(el => `${el.Name}:${el.Destination}:${el.Mode}`)  //Binding volumes mountpoints in case of named volumes
-        },
-      });
-      container.start();
-      this._logger.info(`Container ${oldContainerInfo.Name} recreated and updated !`);
-    } catch (e) {
-      this._logger.error("Error recreating container :", e);
-      throw new Error("Error recreating container : \n" + e);
-    }
   }
 
   public async pruneImages() {
