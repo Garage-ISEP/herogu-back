@@ -113,6 +113,14 @@ export class ProjectDashboardController {
     await this._config.updateHttpRootDir(project);
   }
 
+  @Patch('env')
+  public async updateEnv(@CurrentProject() project: Project, @Body("env") env: { [k: string]: string }) {
+    if (project.phpInfo)
+      project.phpInfo.env = env;
+    await project.save();
+    await this._docker.launchContainerFromConfig(project, true);
+  }
+
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
@@ -120,18 +128,26 @@ export class ProjectDashboardController {
       this._projectWatchObservables.set(project.id, subscriber);
 
       this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
-        .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
+        .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
+        .catch(e => {
+          this._logger.error("Mysql verification error", e);
+          subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
+        });
 
       this._docker.listenContainerStatus(project.name)
         .then(statusObs => statusObs.subscribe({
           next: status => subscriber.next(new ProjectStatusResponse(status[0], "docker", status[1]))
         }))
         .catch(e => {
-          // console.error(e);
           subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
           this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
         });
-      this._docker.imageExists(project.name).then(exists => exists ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")));
+      this._docker.imageExists(project.name)
+        .then(exists => exists ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")))
+        .catch(e => {
+          this._logger.error("Image verification error", e);
+          subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image"));
+        });
     }).pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
       finalize(() => this._projectWatchObservables.delete(project.id))

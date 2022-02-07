@@ -106,7 +106,7 @@ export class MysqlService implements OnModuleInit {
    * If the request is not just a existing database test, the mysql response is logged
    */
   private async _mysqlExec(...str: string[]) {
-    return new Promise<void>(async (resolve, reject) => {
+    return await new Promise<void>(async (resolve, reject) => {
       (await this._docker.containerExec(this._mysqlContainer, ...str)).subscribe({
         complete: resolve,
         error: reject,
@@ -117,6 +117,6 @@ export class MysqlService implements OnModuleInit {
             this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
         }
       });
-    });
+    }).catch(e => console.error(e));
   }
 }

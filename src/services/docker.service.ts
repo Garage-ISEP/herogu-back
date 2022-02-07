@@ -422,7 +422,7 @@ export class DockerService implements OnModuleInit {
    * @returns an Observable with the output stream of the command
    */
   public async containerExec(el: string | Dockerode.Container, ...str: string[]): Promise<Observable<string>> {
-    this._logger.log(`Exec: [${(typeof el === 'string' ? el : el.id)}] [${str.join(" ")}]`);
+    this._logger.log(`Exec:${(typeof el === 'string' ? ` [${el}]` : '')} [${str.join(" ")}]`);
     if (typeof el === "string")
       el = await this.getContainerFromName(el);
     const stream = (await (await el.exec({

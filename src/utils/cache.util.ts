@@ -36,7 +36,7 @@ export class CacheMap<K, V> implements Map<K, V> {
   }
 
   public get(key: K) {
-    return this._map.get(key).value;
+    return this._map.get(key)?.value;
   }
 
   public set(key: K, value: V): this {
