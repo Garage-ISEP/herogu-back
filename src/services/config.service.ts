@@ -23,7 +23,10 @@ export class ConfigService {
       '/etc/nginx/nginx.conf',
       `s/[ \\t]*root \\/var\\/www\\/html\\/.*;/\\t\\troot \\/var\\/www\\/html\\/${path};/g`
     );
-    await this._docker.asyncContainerExec(project.name, 'rc-service', 'nginx', 'reload');
+    if (project.type !== ProjectType.NGINX)
+      await this._docker.asyncContainerExec(project.name, 'rc-service', 'nginx', 'reload');
+    else
+      await this._docker.asyncContainerExec(project.name, 'nginx', '-s', 'reload');
   }
 
   /**
