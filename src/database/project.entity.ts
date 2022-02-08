@@ -66,6 +66,6 @@ export class Project extends BaseEntity {
   public updatedDate: Date;
 
   public get mysqlEnabled() {
-    return this.mysqlInfo !== undefined;
+    return !!this.mysqlInfo;
   }
 }

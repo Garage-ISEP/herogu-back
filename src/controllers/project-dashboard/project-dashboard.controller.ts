@@ -128,12 +128,14 @@ export class ProjectDashboardController {
     return new Observable(subscriber => {
       this._projectWatchObservables.set(project.id, subscriber);
 
-      this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
-        .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
-        .catch(e => {
-          this._logger.error("Mysql verification error", e);
-          subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
-        });
+      if (project.mysqlEnabled) {
+        this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
+          .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
+          .catch(e => {
+            this._logger.error("Mysql verification error", e);
+            subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
+          });
+      }
 
       this._docker.listenContainerStatus(project.name)
         .then(statusObs => statusObs.subscribe({
