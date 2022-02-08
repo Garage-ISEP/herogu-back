@@ -37,6 +37,7 @@ export class DockerService implements OnModuleInit {
 
   public async removeContainerFromName(name: string, removeVolumes = false) {
     let containerId: string;
+    this._logger.log("Removing container", removeVolumes ? "and volumes" : "", name);
     try {
       containerId = await this._getContainerIdFromName(name);
     } catch (e) { }
@@ -44,14 +45,20 @@ export class DockerService implements OnModuleInit {
       await this._removeContainer(containerId, removeVolumes);
       this._containerIdMap.delete(name);
     }
+    this._logger.log("Container removed", name);
   }
 
   public async removeImageFromName(name: string) {
+    this._logger.log("Removing image", name);
+    if (!await this.imageExists(name)) {
+      this._logger.log("Image not found", name);
+      return;
+    }
     try {
       await this._docker.getImage(name).remove();
-      return true;
+      this._logger.log("Image removed", name);
     } catch (e) {
-      return false;
+      this._logger.error("Could not remove image", name, e);
     }
   }
 
@@ -168,34 +175,18 @@ export class DockerService implements OnModuleInit {
     this._mail.sendErrorMail(this, "Error starting new container : ", error);
   }
 
-  public async pruneImages() {
-    await this._docker.pruneImages();
-  }
-
   /**
    * Start or stop the container from its tag name
    * throw docker error if can't stop or get container from name
    */
   public async toggleContainerFromName(name: string) {
-    const id = await this._getContainerIdFromName(name);
-    const container = await this._docker.getContainer(id).inspect();
-    container.State.Running ? await this._docker.getContainer(id).stop() : await this._docker.getContainer(id).start();
-  }
-
-  public async restartContainer(name: string) {
-    await (await this.getContainerFromName(name)).restart();
+    const container = await this.getContainerFromName(name);
+    const containerInfos = await container.inspect();
+    containerInfos.State.Running ? await container.stop() : await container.start();
   }
 
   public async getContainerFromName(projectName: string) {
     return this._docker.getContainer(await this._getContainerIdFromName(projectName));
-  }
-  /**
-   * Get container info
-   * Throw an error if the container doesn't exist
-   */
-  public async getContainerInfoFromName(name: string): Promise<ContainerInspectInfo | null> {
-    const id = await this._getContainerIdFromName(name);
-    return await this._docker.getContainer(id).inspect();
   }
 
   /**
@@ -353,6 +344,7 @@ export class DockerService implements OnModuleInit {
    */
   private async _removeContainer(id: string, removeVolumes = false) {
     const container = this._docker.getContainer(id);
+    const volumes = await this._getContainerVolumes(id);
     try {
       await container.stop();
     } catch (e) {
@@ -360,11 +352,11 @@ export class DockerService implements OnModuleInit {
     }
     await container.remove({ force: true });
     if (removeVolumes) {
-      for (const volume of await this._getContainerVolumes(id)) {
+      for (const volume of volumes) {
         try {
           await volume.remove();
         } catch (e) {
-          this._logger.error("Could not remove volume", volume.name, e);
+          this._logger.error("Could not remove volume", volume?.name, e);
         }
       }
     }
