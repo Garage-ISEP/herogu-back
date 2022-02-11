@@ -310,8 +310,18 @@ export class DockerService implements OnModuleInit {
           "herogu.sha": lastCommitSha,
         }
       });
+      await new Promise<void>((resolve, reject) => {
+        stream.on("data", (data) => {
+          this._logger.log(data.toString());
+        });
+        stream.on("error", (e) => {
+          reject(e);
+        });
+        stream.on("end", () => {
+          resolve();
+        });
+      });
     } catch (e) {
-      console.error(e);
       throw new DockerImageBuildException(e, url);
     }
   }
