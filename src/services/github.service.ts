@@ -12,10 +12,12 @@ import { Webhooks, createNodeMiddleware } from '@octokit/webhooks';
 import { HttpAdapterHost } from '@nestjs/core';
 import EventSource from "eventsource";
 import strTemplate from "string-template";
+import { CacheMap } from 'src/utils/cache.util';
 @Injectable()
 export class GithubService implements OnModuleInit {
 
   private _client: App;
+  private readonly _installationIdMap: CacheMap<string, number> = new CacheMap(60_000 * 10);
   public onContainerUpdate: (project: Project) => Promise<any>;
 
   constructor(
@@ -65,12 +67,16 @@ export class GithubService implements OnModuleInit {
 
   private async _getInstallation(repo: RepoInfo | number) {
     repo = typeof repo != "number" ? await this.getInstallationId(repo) : repo;
-    return await this._client.getInstallationOctokit(repo);
+    const test = await this._client.getInstallationOctokit(repo);
+    return test;
   }
 
   public async getInstallationId(url: RepoInfo) {
     const [owner, repo] = this.getRepoFromUrl(url);
+    if (this._installationIdMap.has(`${owner}/${repo}`))
+      return this._installationIdMap.get(`${owner}/${repo}`);
     const repoInstallation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    this._installationIdMap.set(`${owner}/${repo}`, repoInstallation.data.id);
     return repoInstallation.data.id;
   }
 
