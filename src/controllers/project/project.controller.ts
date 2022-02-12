@@ -53,7 +53,7 @@ export class ProjectController {
       ...projectReq,
       githubLink: projectReq.githubLink.toLowerCase(),
       type: projectReq.type == "nginx" ? ProjectType.NGINX : ProjectType.PHP,
-      repoId: await this._github.getRepoId(projectReq.githubLink),
+      installationId: await this._github.getInstallationId(projectReq.githubLink),
       phpInfo: projectReq.type == "php" ? PhpInfo.create({ env: projectReq.env }) : null,
       mysqlInfo: projectReq.mysqlEnabled ? new MysqlInfo(projectReq.name) : null,
       nginxInfo: NginxInfo.create({ rootDir: projectReq.rootDir, rootDirSha: projectReq.rootDirSha }),

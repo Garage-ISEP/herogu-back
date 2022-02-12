@@ -98,7 +98,7 @@ export class DockerService implements OnModuleInit {
    * @param force if true, the container will be recreated even if it already exists
    */
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
-    if (!await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
+    if (!await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
       this._logger.log("Project configuration is not valid, resetting configuration");
       project.shas = await this._github.addOrUpdateConfiguration(project);
       await project.save();
@@ -322,6 +322,7 @@ export class DockerService implements OnModuleInit {
         });
       });
     } catch (e) {
+      this._logger.error('Error building image from remote: ' + url, e);
       throw new DockerImageBuildException(e, url);
     }
   }

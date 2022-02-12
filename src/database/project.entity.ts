@@ -27,8 +27,8 @@ export class Project extends BaseEntity {
   @Column("text", { nullable: true, array: true })
   public shas?: string[];
 
-  @Column({ type: "int", nullable: true, unique: true })
-  public repoId: number;
+  @Column({ type: "int", nullable: true })
+  public installationId: number;
 
   @Column({ type: "enum", enum: ProjectType })
   public type: ProjectType;

@@ -52,7 +52,7 @@ export class ProjectDashboardController {
   public async linkToGithub(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "github"));
-      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
+      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
         project.shas = await this._github.addOrUpdateConfiguration(project);
         await project.save();
       }

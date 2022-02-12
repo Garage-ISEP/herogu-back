@@ -63,30 +63,34 @@ export class GithubService implements OnModuleInit {
     }
   }
 
-  public async getRepoId(url: string) {
-    const [owner, repo] = url.split("/").slice(-2);
+  private async _getInstallation(repo: RepoInfo | number) {
+    repo = typeof repo != "number" ? await this.getInstallationId(repo) : repo;
+    return await this._client.getInstallationOctokit(repo);
+  }
+
+  public async getInstallationId(url: RepoInfo) {
+    const [owner, repo] = this.getRepoFromUrl(url);
     const repoInstallation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
     return repoInstallation.data.id;
   }
 
-  public async getRepositoryTree(repoLink: string, sha?: string) {
-    const repoId = await this.getRepoId(repoLink);
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    const [owner, repo] = repoLink.split("/").slice(-2);
-    return await octokit.rest.git.getTree({ owner, repo, tree_sha: sha || await this.getLastCommitSha(repoLink, repoId) });
+  public async getRepositoryTree(url: RepoInfo, sha?: string) {
+    const [owner, repo] = this.getRepoFromUrl(url);
+    const octokit = await this._getInstallation(url);
+    return await octokit.rest.git.getTree({ owner, repo, tree_sha: sha || await this.getLastCommitSha(url, octokit) });
   }
   /**
    * Create the repo and returns the lists of shas generated from the files
    */
   public async addOrUpdateConfiguration(project: Project): Promise<string[]> {
-    const [owner, repo] = project.githubLink.split("/").slice(-2);
+    const [owner, repo] = this.getRepoFromUrl(project.githubLink);
 
-    const octokit = await this._client.getInstallationOctokit(project.repoId);
+    const octokit = await this._getInstallation(project.installationId);
     return await this._addFiles(octokit, owner, repo, project.type, project.nginxInfo.rootDir);
   }
 
-  public async verifyInstallation(url: string) {
-    const [owner, repo] = url.split("/").slice(-2);
+  public async verifyInstallation(url: RepoInfo) {
+    const [owner, repo] = this.getRepoFromUrl(url);
     try {
       return !!await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
     } catch (e) {
@@ -94,8 +98,8 @@ export class GithubService implements OnModuleInit {
     }
   }
 
-  public async getInstallationToken(url: string): Promise<string> {
-    const [owner, repo] = url.split("/").slice(-2);
+  public async getInstallationToken(url: RepoInfo): Promise<string> {
+    const [owner, repo] = this.getRepoFromUrl(url);
     const installationInfo = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
     const octokit = await this._client.getInstallationOctokit(installationInfo.data.id);
     const data = await octokit.request(`POST https://api.github.com/app/installations/${installationInfo.data.id}/access_tokens`)
@@ -104,9 +108,9 @@ export class GithubService implements OnModuleInit {
   /**
    * Verify the configuration from the different shas
    */
-  public async verifyConfiguration(url: string, repoId: number, shas: string[]) {
+  public async verifyConfiguration(url: string, installationId: number, shas: string[]) {
     if (!shas) return false;
-    const octokit = await this._client.getInstallationOctokit(repoId);
+    const octokit = await this._client.getInstallationOctokit(installationId);
     const previousShas = await this._getFilesShas(octokit, url);
     for (const sha of previousShas.values()) {
       if (!shas.includes(sha))
@@ -119,13 +123,8 @@ export class GithubService implements OnModuleInit {
    * Get the previous shas of the files registered on github
    * @returns a map with the shas of the files
    */
-  private async _getFilesShas(octokit: Octokit, url: string): Promise<Map<string, string>>;
-  private async _getFilesShas(octokit: Octokit, owner: string, repo: string): Promise<Map<string, string>>
-  private async _getFilesShas(octokit: Octokit, urlOrOwner: string, repo?: string): Promise<Map<string, string>> {
-    let owner = "";
-    if (!repo) {
-      [owner, repo] = urlOrOwner.split("/").slice(-2);
-    } else owner = urlOrOwner;
+  private async _getFilesShas(octokit: Octokit, url: RepoInfo): Promise<Map<string, string>> {
+    const [owner, repo] = this.getRepoFromUrl(url);
     const files: GetContentResponse[] = [];
     try {
       files.push(...(await octokit.rest.repos.getContent({ owner, repo, path: "docker" })).data as any as GetContentResponse[]);
@@ -144,7 +143,7 @@ export class GithubService implements OnModuleInit {
     let dockerfile = (await fs.readFile(`./config/${dir}/Dockerfile`)).toString();
     dockerfile += `\nLABEL org.opencontainers.image.source https://github.com/${owner}/${repo}`;
     const nginxConfig = strTemplate((await fs.readFile(`./config/${dir}/nginx.conf`)).toString(), { PROJECT_ROOT: projectRoot.substring(1) });
-    const previousShas = await this._getFilesShas(octokit, owner, repo);
+    const previousShas = await this._getFilesShas(octokit, [owner, repo]);
     try {
       const res = await Promise.all([
         octokit.rest.repos.createOrUpdateFileContents({
@@ -164,7 +163,7 @@ export class GithubService implements OnModuleInit {
           content: Buffer.from(nginxConfig).toString("base64"),
         })
       ]);
-      return [...(await this._getFilesShas(octokit, owner, repo)).values()];
+      return [...(await this._getFilesShas(octokit, repo)).values()];
     } catch (e) {
       console.error(e);
       throw new Error("Error adding files to repo");
@@ -178,7 +177,7 @@ export class GithubService implements OnModuleInit {
       return;
     //Stop if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
-    const project = await Project.findOne({ where: { repoId: event.installation.id } });
+    const project = await Project.findOne({ where: { installationId: event.installation.id } });
     if (!project)
       return;
     try {
@@ -190,21 +189,31 @@ export class GithubService implements OnModuleInit {
     }
   }
 
-  public async getMainBranch(url: string, repoId?: number) {
-    repoId ??= await this.getRepoId(url);
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    const owner = url.split("/").slice(-2, -1)[0];
-    const repo = url.split("/").slice(-1)[0];
-    const res = await octokit.rest.repos.get({ owner, repo });
+  public async getMainBranch(url: RepoInfo, installation?: number | Octokit) {
+    const [owner, repo] = this.getRepoFromUrl(url);
+    if (!installation)
+      installation = await this._getInstallation(url);
+    else if (typeof installation == "number")
+      installation = await this._client.getInstallationOctokit(installation);
+    const res = await installation.rest.repos.get({ owner, repo });
     return res.data.default_branch;
   }
 
-  public async getLastCommitSha(url: string, repoId?: number) {
-    const [owner, repo] = url.split("/").slice(-2);
-    repoId ??= await this.getRepoId(url);
-    const octokit = await this._client.getInstallationOctokit(repoId);
-    const mainBranch = await this.getMainBranch(url, repoId);
-    const res = await octokit.rest.repos.getCommit({ owner, repo, ref: "heads/" + mainBranch });
+  public async getLastCommitSha(url: RepoInfo, installation?: number | Octokit) {
+    const [owner, repo] = this.getRepoFromUrl(url);
+    if (!installation)
+      installation = await this._getInstallation(url);
+    else if (typeof installation == "number")
+      installation = await this._client.getInstallationOctokit(installation);
+    const mainBranch = await this.getMainBranch(url, installation);
+    const res = await installation.rest.repos.getCommit({ owner, repo, ref: "heads/" + mainBranch });
     return res.data.sha;
   }
+
+  private getRepoFromUrl(repo: RepoInfo): [string, string] {
+    if (typeof repo === "string")
+      return repo.split("/").slice(-2) as [string, string];
+    return repo;
+  }
 }
+type RepoInfo = string | [string, string];
