@@ -167,9 +167,9 @@ export class DockerService implements OnModuleInit {
             '80': {}
           },
           Env: this._getEnv(project),
-          Volumes: {
-            [`${project.name}-config`]: {},
-          },
+          // Volumes: {
+          //   [`${project.name}-config`]: {},
+          // },
           NetworkingConfig: {
             EndpointsConfig: {
               web: { Aliases: ["web"] },
@@ -184,8 +184,7 @@ export class DockerService implements OnModuleInit {
         this._logger.error("Impossible to create or start the container, trying one more time", e);
       }
     }
-    this._logger.log("Container not created or started after 3 times, incident will be reported.");
-    this._mail.sendErrorMail(this, "Error starting new container : ", error);
+    this._logger.log("Container not created or started after 3 times.");
   }
 
   /**
@@ -352,7 +351,7 @@ export class DockerService implements OnModuleInit {
         [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}${process.env.PROJECT_DOMAIN}\`)`,
         [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
         [`traefik.http.routers.${name}-secure.tls.certresolver`]: "myhttpchallenge",
-      } : { },
+      } : {},
       [`traefik.http.routers.${name}.rule`]: `Host(\`${name}${process.env.PROJECT_DOMAIN}\`)`,
       [`traefik.http.routers.${name}.entrypoints`]: "web",
       [`traefik.http.routers.${name}.middlewares`]: "redirect",

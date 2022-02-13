@@ -34,12 +34,18 @@ export class ProjectDashboardController {
 
   @Get()
   public async getOne(@CurrentProject() project: Project) {
-    const containerInfos = await this._docker.getContainerInfosFromName(project.name);
-    return new ProjectResponse(project, containerInfos.SizeRw);
+    try {
+      const containerInfos = await this._docker.getContainerInfosFromName(project.name);
+      return new ProjectResponse(project, containerInfos.SizeRw);
+    } catch (e) {
+      if (e.response?.code == 5)
+        return new ProjectResponse(project, 0);
+      else
+        throw e;
+    }
   }
 
   @Delete()
-  @UseGuards(ProjectGuard)
   public async deleteProject(@CurrentProject() project: Project) {
     await this._docker.removeContainerFromName(project.name, true);
     await this._docker.removeImageFromName(project.name);
@@ -50,7 +56,6 @@ export class ProjectDashboardController {
   }
 
   @Post('github-link')
-  @UseGuards(ProjectGuard)
   public async linkToGithub(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "github"));
@@ -67,13 +72,13 @@ export class ProjectDashboardController {
   }
 
   @Post('docker-link')
-  @UseGuards(ProjectGuard)
   public async linkToDocker(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "docker"));
       await this._docker.launchContainerFromConfig(project);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
-      // this._emitProject(project, new ProjectStatusResponse(ContainerStatus.Running, "docker"));
+      const containerInfos = await this._docker.getContainerInfosFromName(project.name);
+      return new ProjectResponse(project, containerInfos.SizeRw);
     } catch (e) {
       this._logger.error(e);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "docker"));

@@ -1,4 +1,4 @@
-import { DockerService } from 'src/services/docker.service';
+import { MailerService } from 'src/services/mailer.service';
 import { Project } from 'src/database/project.entity';
 import { ProjectType } from './../database/project.entity';
 import { Injectable, OnModuleInit, BadRequestException, ForbiddenException } from '@nestjs/common';
@@ -22,7 +22,8 @@ export class GithubService implements OnModuleInit {
 
   constructor(
     private readonly _logger: AppLogger,
-    private readonly adapterHost: HttpAdapterHost
+    private readonly adapterHost: HttpAdapterHost,
+    private readonly _mailer: MailerService,
   ) { }
 
   public async onModuleInit() {
@@ -169,7 +170,7 @@ export class GithubService implements OnModuleInit {
           content: Buffer.from(nginxConfig).toString("base64"),
         })
       ]);
-      return [...(await this._getFilesShas(octokit, repo)).values()];
+      return [...(await this._getFilesShas(octokit, [owner, repo])).values()];
     } catch (e) {
       console.error(e);
       throw new Error("Error adding files to repo");
@@ -183,13 +184,16 @@ export class GithubService implements OnModuleInit {
       return;
     //Stop if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
-    const project = await Project.findOne({ where: { installationId: event.installation.id } });
+    const project = await Project.findOne({ where: { installationId: event.installation.id }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
     if (!project)
       return;
     try {
       this._logger.log("Starting to update project", project.name);
       await this.onContainerUpdate(project);
       this._logger.log(`Successfully update projet ${project.name}`);
+      await this._mailer.sendMailToProject(project, `
+        Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()}
+      `);
     } catch (e) {
       this._logger.error("Impossible to update project", project.name, e);
     }

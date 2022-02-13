@@ -49,7 +49,10 @@ export class Project extends BaseEntity {
   public lastBuild?: Date;
 
   @Column({ nullable: true })
-  public storageOverageDate: Date;
+  public storageOverageDate?: Date;
+
+  @Column({ default: false })
+  public storageWarned: boolean;
 
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()
@@ -58,7 +61,7 @@ export class Project extends BaseEntity {
   @RelationId((project: Project) => project.creator)
   public creatorId: string;
 
-  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"], onDelete: "CASCADE" })
+  @OneToMany(() => Collaborator, collaborator => collaborator.project, { cascade: ["insert", "recover", "update", "remove"], onDelete: "CASCADE", eager: true })
   @JoinColumn()
   public collaborators: Collaborator[];
 

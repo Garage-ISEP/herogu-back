@@ -19,7 +19,7 @@ export class Collaborator extends BaseEntity {
   @RelationId((collaborator: Collaborator) => collaborator.project)
   public projectId: string;
 
-  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE" })
+  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE", eager: true })
   @JoinColumn()
   public user: User;
 

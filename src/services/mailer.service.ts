@@ -24,7 +24,7 @@ export class MailerService implements OnModuleInit {
       this._logger.log("Checking mail server configuration...");
       if (!mailConf)
         throw new Error("Mail configuration not found");
-      // await this._transporter.verify();
+      await this._transporter.verify();
       this._logger.log("Mail server configuration OK");
 		} catch(e) {
 			this._logger.error("Mail error during verification", e);
@@ -49,23 +49,6 @@ export class MailerService implements OnModuleInit {
       });
     } catch (e) {
       this._logger.error("Error sending mail !", e);
-    }
-  }
-  
-  public async sendErrorMail(caller: any, ...error: any[]) {
-    const callerName = Object.getPrototypeOf(caller).constructor.name;
-    try {
-      await this._transporter.sendMail({
-        from: mailConf.mail,
-        to: process.env.MAIL_ADMIN,
-        subject: `Erreur Herogu : ${callerName}`,
-        html: `
-          <h1 style='text-align: center'>Logs : </h1>
-          <p>${error.join(" ")}</p>
-        `
-      });
-    } catch (e) {
-      this._logger.error("Error sending error mail !", e);
     }
   }
 }
