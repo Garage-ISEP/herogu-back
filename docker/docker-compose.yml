@@ -1,6 +1,6 @@
 services:
   back:
-    image: docker.pkg.github.com/garage-isep/herogu-back/herogu-back:latest
+    image: ghcr.io/garage-isep/herogu-back/herogu-back:latest
     container_name: herogu-back
     tty: true
     expose:
@@ -22,25 +22,26 @@ services:
       traefik.http.routers.herogu-api.rule: Host(`api.herogu.garageisep.com`)
       traefik.http.routers.herogu-api.entrypoints: web
       traefik.http.routers.herogu-api.middlewares: redirect
-      
-      # Docker-CI configuration
-      docker-ci.enable: "true"
-      docker-ci.name: herogu-back
-      docker-ci.repo-url: https://docker.pkg.github.com/garage-isep/herogu-back/herogu-back:latest
-      docker-ci.username: Totodore
-      docker-ci.auth-server: https://docker.pkg.github.com
-      docker-ci.password: 
-  mysql:
-    image: mysql
-    container_name: herogu-mysql
+  front:
+    image: ghcr.io/garage-isep/herogu-front/herogu-front:latest
+    container_name: herogu-front
     tty: true
+    expose:
+      - 80
+    networks:
+      - "web"
     restart: always
-    ports:
-      - 3306:3306
-    volumes:
-      - mysql-herogu-data:/var/lib/mysql
-    env_file:
-      - app.env
+    labels:
+      # Traefik configuration
+      traefik.enable: 'true'
+      traefik.http.routers.herogu-front-secure.rule: Host(`herogu.garageisep.com`)
+      traefik.http.routers.herogu-front-secure.entrypoints: websecure
+      traefik.http.routers.herogu-front-secure.tls.certresolver: myhttpchallenge
+      traefik.http.middlewares.redirect.redirectscheme.scheme: https
+      traefik.http.routers.herogu-front.rule: Host(`herogu.garageisep.com`)
+      traefik.http.routers.herogu-front.entrypoints: web
+      traefik.http.routers.herogu-front.middlewares: redirect
+
 networks:
   web:
     external: true
