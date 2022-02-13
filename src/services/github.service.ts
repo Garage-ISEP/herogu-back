@@ -99,7 +99,14 @@ export class GithubService implements OnModuleInit {
   public async verifyInstallation(url: RepoInfo) {
     const [owner, repo] = this.getRepoFromUrl(url);
     try {
-      return !!await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+      const installation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
+      if (!installation)
+        return false;
+      const octokit = await this._getInstallation(installation.data.id);
+      return !(await octokit.rest.repos.getBranch({
+        owner, repo,
+        branch: await this.getMainBranch(url, installation.data.id)
+      })).data.protected;
     } catch (e) {
       return false;
     }
