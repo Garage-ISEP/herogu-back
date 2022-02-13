@@ -129,6 +129,12 @@ export class ProjectDashboardController {
     await this._docker.launchContainerFromConfig(project, true);
   }
 
+  @Patch('toggle-notifications')
+  public async toggleNotifications(@CurrentProject() project: Project) {
+    project.notificationsEnabled = !project.notificationsEnabled;
+    return await project.save();
+  }
+
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
