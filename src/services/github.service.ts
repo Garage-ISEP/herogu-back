@@ -99,13 +99,10 @@ export class GithubService implements OnModuleInit {
   public async verifyInstallation(url: RepoInfo) {
     const [owner, repo] = this.getRepoFromUrl(url);
     try {
-      const installation = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
-      if (!installation)
-        return false;
-      const octokit = await this._getInstallation(installation.data.id);
+      const octokit = await this._getInstallation(url);
       return !(await octokit.rest.repos.getBranch({
         owner, repo,
-        branch: await this.getMainBranch(url, installation.data.id)
+        branch: await this.getMainBranch(url)
       })).data.protected;
     } catch (e) {
       return false;
@@ -198,9 +195,11 @@ export class GithubService implements OnModuleInit {
       this._logger.log("Starting to update project", project.name);
       await this.onContainerUpdate(project);
       this._logger.log(`Successfully update projet ${project.name}`);
-      await this._mailer.sendMailToProject(project, `
-        Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()}
-      `);
+      if (project.notificationsEnabled) {
+        await this._mailer.sendMailToProject(project, `
+          Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()}
+        `);
+      }
     } catch (e) {
       this._logger.error("Impossible to update project", project.name, e);
     }
