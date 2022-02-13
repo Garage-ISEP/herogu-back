@@ -1,3 +1,4 @@
+import { DockerDf } from './../models/docker/docker-df.model';
 import { CacheMap } from './../utils/cache.util';
 import { Project, ProjectType } from 'src/database/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
@@ -60,6 +61,18 @@ export class DockerService implements OnModuleInit {
     } catch (e) {
       this._logger.error("Could not remove image", name, e);
     }
+  }
+
+  /**
+   * @returns all herogu containers with their disk space usage
+   */
+  public async getContainersDataUsage(): Promise<DockerDf.Container[]> {
+    return (await this._docker.df() as DockerDf.DockerDf).Containers
+      .filter(container => container.Labels["herogu.enabled"] === "true");
+  }
+
+  public async getContainerInfosFromName(name: string): Promise<ContainerInspectInfo & { SizeRw: number, SizeRootFs: number }> {
+    return await (await this.getContainerFromName(name)).inspect({ size: true }) as ContainerInspectInfo & { SizeRw: number, SizeRootFs: number };
   }
 
   /**
@@ -187,6 +200,11 @@ export class DockerService implements OnModuleInit {
 
   public async getContainerFromName(projectName: string) {
     return this._docker.getContainer(await this._getContainerIdFromName(projectName));
+  }
+  public async getContainerNameFromId(id: string) {
+    const container = await this._docker.getContainer(id);
+    const containerInfos = await container.inspect();
+    return containerInfos.Name.replace("/", "");
   }
 
   /**
@@ -330,13 +348,16 @@ export class DockerService implements OnModuleInit {
   private _getLabels(name: string): ContainerLabels {
     return {
       "traefik.enable": 'true',
-      [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}${process.env.PROJECT_DOMAIN}\`)`,
-      [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
-      [`traefik.http.routers.${name}-secure.tls.certresolver`]: "myhttpchallenge",
+      ...process.env.ENABLE_HTTPS == "true" ? {
+        [`traefik.http.routers.${name}-secure.rule`]: `Host(\`${name}${process.env.PROJECT_DOMAIN}\`)`,
+        [`traefik.http.routers.${name}-secure.entrypoints`]: "websecure",
+        [`traefik.http.routers.${name}-secure.tls.certresolver`]: "myhttpchallenge",
+      } : { },
       [`traefik.http.routers.${name}.rule`]: `Host(\`${name}${process.env.PROJECT_DOMAIN}\`)`,
       [`traefik.http.routers.${name}.entrypoints`]: "web",
       [`traefik.http.routers.${name}.middlewares`]: "redirect",
       "traefik.http.middlewares.redirect.redirectscheme.scheme": "https",
+      "herogu.enabled": "true",
     };
   }
 

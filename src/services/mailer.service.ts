@@ -1,3 +1,4 @@
+import { Project } from './../database/project.entity';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { AppLogger } from 'src/utils/app-logger.util';
@@ -29,6 +30,26 @@ export class MailerService implements OnModuleInit {
 			this._logger.error("Mail error during verification", e);
     }
     return this;
+  }
+
+  public async sendMailToProject(project: Project, message: string) {
+    try {
+      await this._transporter.sendMail({
+        from: mailConf.mail,
+        to: project.collaborators.map(c => c.user.mail).join(","),
+        subject: `[${project.name}] Notification Herogu`,
+        html: `
+          <h1 style='text-align: center'>Notification Herogu</h1>
+          <p>${message}</p>
+          <br>
+          <br>
+          <p>Cordialement,</p>
+          <p>Garage</p>
+        `
+      });
+    } catch (e) {
+      this._logger.error("Error sending mail !", e);
+    }
   }
   
   public async sendErrorMail(caller: any, ...error: any[]) {

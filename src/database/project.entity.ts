@@ -48,6 +48,9 @@ export class Project extends BaseEntity {
   @Column({ nullable: true})
   public lastBuild?: Date;
 
+  @Column({ nullable: true })
+  public storageOverageDate: Date;
+
   @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
   @JoinColumn()
   public creator: User;

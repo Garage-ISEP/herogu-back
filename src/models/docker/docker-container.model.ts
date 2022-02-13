@@ -2,6 +2,7 @@
 export interface ContainerLabels {
   "traefik.enable": string,
   "traefik.http.middlewares.redirect.redirectscheme.scheme": string,
+  "herogu.enabled": string,
 }
 export interface ContainerLogsConfig {
   detachKeys?: string;

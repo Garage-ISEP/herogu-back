@@ -15,6 +15,7 @@ import { AdminProjectController } from './controllers/admin/project/project.cont
 import { SsoService } from './services/sso.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProjectDashboardController } from './controllers/project-dashboard/project-dashboard.controller';
+import { StorageService } from './services/storage.service';
 
 @Module({
   imports: [
@@ -38,6 +39,6 @@ import { ProjectDashboardController } from './controllers/project-dashboard/proj
     }),
   ],
   controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController],
-  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, ConfigService, AppLogger],
+  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, ConfigService, AppLogger, StorageService],
 })
 export class AppModule {}

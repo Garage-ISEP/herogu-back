@@ -1,3 +1,4 @@
+import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
 import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
@@ -33,7 +34,8 @@ export class ProjectDashboardController {
 
   @Get()
   public async getOne(@CurrentProject() project: Project) {
-    return project;
+    const containerInfos = await this._docker.getContainerInfosFromName(project.name);
+    return new ProjectResponse(project, containerInfos.SizeRw);
   }
 
   @Delete()
