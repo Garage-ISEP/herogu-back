@@ -116,6 +116,7 @@ export class DockerService implements OnModuleInit {
       project.shas = await this._github.addOrUpdateConfiguration(project);
       await project.save();
     }
+    const previousImageId = (await this._docker.getImage(project.name)?.inspect())?.Id;
     try {
       const repoSha = await this._github.getLastCommitSha(project.githubLink);
       let imageSha: string;
@@ -178,6 +179,7 @@ export class DockerService implements OnModuleInit {
         });
         await container.start({});
         this._logger.info("Container", project.name, "created and started");
+        await this._removePreviousImage(previousImageId, project.name);
         return container;
       } catch (e) {
         error = e;
@@ -185,6 +187,14 @@ export class DockerService implements OnModuleInit {
       }
     }
     this._logger.log("Container not created or started after 3 times.");
+  }
+
+  private async _removePreviousImage(previousImageId: string, tag: string) {
+    const newImageId = (await this._docker.getImage(tag)?.inspect())?.Id;
+    if (newImageId !== previousImageId) {
+      this._logger.log("Removing previous image for", tag, ":", previousImageId);
+      await this._docker.getImage(previousImageId).remove({ force: true });
+    }
   }
 
   /**
