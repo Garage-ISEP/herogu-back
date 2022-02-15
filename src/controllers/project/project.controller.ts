@@ -10,6 +10,7 @@ import { CreateProjectDto } from './project.dto';
 import { PhpInfo } from 'src/database/php-info.entity';
 import { MysqlInfo } from 'src/database/mysql-info.entity';
 import { NginxInfo } from 'src/database/nginx-info.entity';
+import { createQueryBuilder } from 'typeorm';
 
 @Controller('project')
 @UseGuards(AuthGuard)
@@ -29,7 +30,7 @@ export class ProjectController {
 
   @Get("/check-bot-github")
   public async checkProjectGithubLink(@Query("link") link: string) {
-    const status = await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() }});
+    const status = await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() } });
     return status ? { status, tree: await this.getRepoTree(link) } : { status };
   }
 
@@ -46,9 +47,12 @@ export class ProjectController {
 
   @Post('/')
   public async createProject(@Body() projectReq: CreateProjectDto, @CurrentUser() user: User) {
-    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() }});
+    const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() } });
     if (project)
       throw new BadRequestException("This repository has already been registered");
+    const users = await createQueryBuilder(User, 'u')
+      .where('LOWER(u.studentId) IN (:...studentIds)', { studentIds: projectReq.addedUsers })
+      .getMany();
     return await Project.create({
       creator: user,
       ...projectReq,
@@ -58,10 +62,10 @@ export class ProjectController {
       phpInfo: projectReq.type == "php" ? PhpInfo.create({ env: projectReq.env }) : null,
       mysqlInfo: projectReq.mysqlEnabled ? new MysqlInfo(projectReq.name) : null,
       nginxInfo: NginxInfo.create({ rootDir: projectReq.rootDir, rootDirSha: projectReq.rootDirSha }),
-      collaborators: [...(await User.find({ where: { studentId: projectReq.addedUsers } })).map(user => Collaborator.create({
-        user,
-        role: Role.COLLABORATOR
-      })), Collaborator.create({ user, role: Role.OWNER })]
+      collaborators: [
+        ...users.map(user => Collaborator.create({ user, role: Role.COLLABORATOR })),
+        Collaborator.create({ user, role: Role.OWNER })
+      ]
     }).save();
   }
 

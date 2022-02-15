@@ -1,10 +1,9 @@
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { DockerDf } from './../models/docker/docker-df.model';
 import { CacheMap } from './../utils/cache.util';
-import { Project, ProjectType } from 'src/database/project.entity';
+import { Project } from 'src/database/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException, DockerContainerRemoveException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
+import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';
 import { ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
 import { MailerService } from './mailer.service';
 import { AppLogger } from 'src/utils/app-logger.util';
@@ -173,7 +172,7 @@ export class DockerService implements OnModuleInit {
         });
         await container.start({});
         this._logger.info("Container", project.name, "created and started");
-        await this._removePreviousImage(previousImage.Id, project.name);
+        await this._removePreviousImage(previousImage?.Id, project.name);
         return container;
       } catch (e) {
         error = e;
@@ -186,15 +185,17 @@ export class DockerService implements OnModuleInit {
   }
 
   private async _removePreviousImage(previousImageId: string, tag: string) {
-    const newImageId = (await this._docker.getImage(tag)?.inspect())?.Id;
-    if (newImageId !== previousImageId) {
-      this._logger.log("Removing previous image for", tag, ":", previousImageId);
-      await this._docker.getImage(previousImageId).remove({ force: true });
-    }
+    try {
+      const newImageId = (await this._docker.getImage(tag)?.inspect())?.Id;
+      if (newImageId !== previousImageId) {
+        this._logger.log("Removing previous image for", tag, ":", previousImageId);
+        await this._docker.getImage(previousImageId).remove({ force: true });
+      }
+    } catch (e) { }
   }
   private async _tryGetImageInfo(tag: string): Promise<Dockerode.ImageInspectInfo | null> {
     try {
-      return this._docker.getImage(tag)?.inspect()
+      return await this._docker.getImage(tag)?.inspect();
     } catch (e) {
       return null;
     }

@@ -33,13 +33,13 @@ export class Project extends BaseEntity {
   @Column({ type: "enum", enum: ProjectType })
   public type: ProjectType;
 
-  @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
+  @OneToOne(() => MysqlInfo, mysqlInfo => mysqlInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"], eager: true })
   public mysqlInfo?: MysqlInfo;
 
-  @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"] })
+  @OneToOne(() => PhpInfo, phpInfo => phpInfo.project, { nullable: true, cascade: ["insert", "recover", "update", "remove"], eager: true })
   public phpInfo?: PhpInfo;
 
-  @OneToOne(() => NginxInfo, nginxInfo => nginxInfo.project, { cascade: ["insert", "recover", "update", "remove"] })
+  @OneToOne(() => NginxInfo, nginxInfo => nginxInfo.project, { cascade: ["insert", "recover", "update", "remove"], eager: true })
   public nginxInfo: NginxInfo;
 
   @Column()
@@ -54,7 +54,7 @@ export class Project extends BaseEntity {
   @Column({ default: false })
   public storageWarned: boolean;
 
-  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"] })
+  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], eager: true })
   @JoinColumn()
   public creator: User;
 

@@ -23,7 +23,7 @@ export class Collaborator extends BaseEntity {
   @JoinColumn()
   public user: User;
 
-  @RelationId((collaborator: Collaborator) => collaborator.user)
+  @Column()
   public userId: string;
 
   @Column({ type: "enum", enum: Role })
