@@ -41,6 +41,11 @@ export class DockerContainerNotFoundException extends InternalServerErrorExcepti
   }
 }
 
+export class DockerContainerRemoveException extends InternalServerErrorException {
+  constructor(name?: string) {
+    super({ code: 7 }, "Impossible to delete docker container with name " + name);
+  }
+}
 
 export class DockerImageBuildException extends InternalServerErrorException {
   constructor(error?: Error, name?: string) {

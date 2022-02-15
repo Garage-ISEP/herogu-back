@@ -1,7 +1,8 @@
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { DockerDf } from './../models/docker/docker-df.model';
 import { CacheMap } from './../utils/cache.util';
 import { Project, ProjectType } from 'src/database/project.entity';
-import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException } from './../errors/docker.exception';
+import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException, DockerContainerRemoveException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInfo, ContainerInspectInfo } from 'dockerode';
 import { ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
@@ -116,13 +117,10 @@ export class DockerService implements OnModuleInit {
       project.shas = await this._github.addOrUpdateConfiguration(project);
       await project.save();
     }
-    const previousImageId = (await this._docker.getImage(project.name)?.inspect())?.Id;
+    const previousImage = await this._tryGetImageInfo(project.name);
     try {
       const repoSha = await this._github.getLastCommitSha(project.githubLink);
-      let imageSha: string;
-      try {
-        imageSha = await this.getImageCommitSha(project.name);
-      } catch (e) { }
+      const imageSha = previousImage?.Config.Labels["herogu.sha"];
       if (imageSha !== repoSha)
         await this._buildImageFromRemote(project.githubLink, project.name);
       else if (!forceRecreate) {
@@ -131,18 +129,14 @@ export class DockerService implements OnModuleInit {
       }
     } catch (e) {
       this._logger.error("Impossible to build image from url :" + project.githubLink);
-      this._logger.error("Image doesn't exists, impossible to continue, incident will be reported");
-      this._logger.error(e);
-      // this._mail.sendErrorMail(this, "Error pulling image : ", e);
+      this._logger.error("Image doesn't exists, impossible to continue", e);
       throw new DockerImageNotFoundException();
     }
     try {
       await this.removeContainerFromName(project.name);
     } catch (e) {
-      this._logger.error("Error removing container " + project.name);
-      this._logger.error("Cannot continue container creation, incident will be reported");
-      // this._mail.sendErrorMail(this, "Error removing container : ", e);
-      return;
+      this._logger.error("Error removing container " + project.name, e);
+      throw new DockerContainerRemoveException(project.name);
     }
     let error: string;
     for (let i = 0; i < 3; i++) {
@@ -179,7 +173,7 @@ export class DockerService implements OnModuleInit {
         });
         await container.start({});
         this._logger.info("Container", project.name, "created and started");
-        await this._removePreviousImage(previousImageId, project.name);
+        await this._removePreviousImage(previousImage.Id, project.name);
         return container;
       } catch (e) {
         error = e;
@@ -187,6 +181,8 @@ export class DockerService implements OnModuleInit {
       }
     }
     this._logger.log("Container not created or started after 3 times.");
+    if (error)
+      throw error;
   }
 
   private async _removePreviousImage(previousImageId: string, tag: string) {
@@ -194,6 +190,13 @@ export class DockerService implements OnModuleInit {
     if (newImageId !== previousImageId) {
       this._logger.log("Removing previous image for", tag, ":", previousImageId);
       await this._docker.getImage(previousImageId).remove({ force: true });
+    }
+  }
+  private async _tryGetImageInfo(tag: string): Promise<Dockerode.ImageInspectInfo | null> {
+    try {
+      return this._docker.getImage(tag)?.inspect()
+    } catch (e) {
+      return null;
     }
   }
 
@@ -270,11 +273,6 @@ export class DockerService implements OnModuleInit {
     } catch (e) {
       throw new Error("Error creating docker event listener");
     }
-  }
-
-  private async getImageCommitSha(image: string): Promise<string> {
-    const infos = await this._docker.getImage(image).inspect()
-    return infos.Config.Labels["herogu.sha"];
   }
 
   private async _checkStatusEvents(containerId: string) {
