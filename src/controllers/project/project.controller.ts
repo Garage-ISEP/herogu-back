@@ -29,7 +29,8 @@ export class ProjectController {
 
   @Get("/check-bot-github")
   public async checkProjectGithubLink(@Query("link") link: string) {
-    return await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() }});
+    const status = await this._github.verifyInstallation(link) && !await Project.findOne({ where: { githubLink: link.toLowerCase() }});
+    return status ? { status, tree: await this.getRepoTree(link) } : { status };
   }
 
   @Get("/repo-tree")
