@@ -1,13 +1,10 @@
 import { AppLogger } from 'src/utils/app-logger.util';
 import { AuthGuard } from './../../guards/auth.guard';
-import { BadRequestException, Body, Controller, ForbiddenException, Get, InternalServerErrorException, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, InternalServerErrorException, Post, UseGuards } from '@nestjs/common';
 import { User } from 'src/database/user.entity';
 import { LoginDto, LoginResponse } from './auth.dto';
 import * as jwt from "jsonwebtoken";
 import { CurrentUser } from 'src/decorators/current-user.decorator';
-import { ToManyResendMailException } from 'src/errors/auth.exception';
-import { MailerService } from 'src/services/mailer.service';
-import { Recaptcha } from '@nestlab/google-recaptcha';
 import { SsoService } from 'src/services/sso.service';
 @Controller('auth')
 export class AuthController {
@@ -32,7 +29,7 @@ export class AuthController {
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
     if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
       throw new ForbiddenException("You are not allowed to login");
-    let user = await User.findOne({ where: { studentId: creds.studentId }, relations: ["collaborators", "collaborators.project"] });
+    let user = await User.findOne({ where: { id: creds.studentId }, relations: ["collaborators", "collaborators.project"] });
     const token = await this._sso.login(creds.studentId, creds.password);
     if (!user) {
       const ssoUser = await this._sso.getUser(token);
@@ -40,11 +37,11 @@ export class AuthController {
         firstName: ssoUser.prenom,
         lastName: ssoUser.nom,
         mail: ssoUser.mail,
-        studentId: creds.studentId
+        id: creds.studentId
       }).save();
     }
     try {
-      return new LoginResponse(jwt.sign(user.studentId, process.env.JWT_SECRET), user);
+      return new LoginResponse(jwt.sign(user.id, process.env.JWT_SECRET), user);
     } catch (e) {
       this._logger.log("Error during login", e);
       throw new InternalServerErrorException("Error during login");

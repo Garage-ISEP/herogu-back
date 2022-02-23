@@ -143,13 +143,8 @@ export class ProjectDashboardController {
   @Patch('user-access')
   @SetRole(Role.OWNER)
   public async updateUserAccess(@CurrentProject() project: Project, @Body("users") studentIds: string[]) {
-    // We add the owner to the list of students to keep as collaborators
-    studentIds.push(project.creator.studentId);
-    const users = await User.find({ where: { studentId: In(studentIds) } });
-    // We remove all user that are not in the list
-    project.collaborators = project.collaborators.filter(c => studentIds.includes(c.user.studentId));
-    // We add all users that are in the list
-    project.collaborators.push(...users.map(user => Collaborator.create({ user, project, role: Role.COLLABORATOR })));
+    project.collaborators = studentIds.map(userId => Collaborator.create({ userId, projectId: project.id, role: Role.COLLABORATOR }));
+    project.collaborators.push(Collaborator.create({ userId: project.creatorId, projectId: project.id, role: Role.OWNER }));
     return await project.save();
   }
 

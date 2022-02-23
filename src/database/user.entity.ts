@@ -1,13 +1,14 @@
 import { Project } from './project.entity';
 import { Collaborator } from './collaborator.entity';
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity()
 export class User extends BaseEntity {
   
-  @PrimaryGeneratedColumn("uuid")
-  public id: string;
 
+  @PrimaryColumn({ type: "varchar", length: 9 })
+  public id: string;
+  
   @Column()
   public firstName: string;
 
@@ -16,9 +17,6 @@ export class User extends BaseEntity {
 
   @Column({ unique: true })
   public mail: string;
-
-  @Column({ unique: true, type: "varchar", length: 9 })
-  public studentId: string;
 
   @Column({ default: false })
   public admin: boolean;

@@ -9,6 +9,7 @@ import { MailerService } from './mailer.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { Observable, Observer } from 'rxjs';
 import { GithubService } from './github.service';
+import { createQueryBuilder } from 'typeorm';
 @Injectable()
 export class DockerService implements OnModuleInit {
 
@@ -114,7 +115,7 @@ export class DockerService implements OnModuleInit {
     if (!await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
       this._logger.log("Project configuration is not valid, resetting configuration");
       project.shas = await this._github.addOrUpdateConfiguration(project);
-      await project.save();
+      await createQueryBuilder(Project).update().set({ shas: project.shas }).where({ id: project.id }).execute();
     }
     const previousImage = await this._tryGetImageInfo(project.name);
     try {

@@ -10,29 +10,20 @@ export enum Role {
 @Entity()
 export class Collaborator extends BaseEntity {
 
-  @PrimaryGeneratedColumn()
-  public id: number;
-
-  @ManyToOne(() => Project, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE" })
+  @ManyToOne(() => Project, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE", primary: true })
   public project: Project;
 
   @RelationId((collaborator: Collaborator) => collaborator.project)
   public projectId: string;
 
-  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE", eager: true })
+  @ManyToOne(() => User, { cascade: ["insert", "recover", "update"], onDelete: "CASCADE", eager: true, primary: true })
   @JoinColumn()
   public user: User;
 
-  @Column()
+  @RelationId((collaborator: Collaborator) => collaborator.user)
   public userId: string;
 
   @Column({ type: "enum", enum: Role })
   public role: Role;
-
-  @CreateDateColumn()
-  public createdDate: Date;
-
-  @UpdateDateColumn()
-  public updatedDate: Date;
 }
 

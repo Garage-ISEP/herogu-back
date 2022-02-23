@@ -50,9 +50,7 @@ export class ProjectController {
     const project = await Project.findOne({ where: { githubLink: projectReq.githubLink.toLowerCase() } });
     if (project)
       throw new BadRequestException("This repository has already been registered");
-    const users = projectReq.addedUsers.length > 0 ? await createQueryBuilder(User, 'u')
-      .where('LOWER(u.studentId) IN (:...studentIds)', { studentIds: projectReq.addedUsers })
-      .getMany() : [];
+    const users = await User.find({ where: { id: projectReq.addedUsers }});
     return await Project.create({
       creator: user,
       ...projectReq,
