@@ -1,3 +1,4 @@
+import { createQueryBuilder, In } from 'typeorm';
 import { Role, Collaborator } from './../../database/collaborator.entity';
 import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
@@ -23,7 +24,7 @@ import { User } from 'src/database/user.entity';
 
 @Controller('project/:id')
 @UseGuards(AuthGuard, ProjectGuard)
-@SetRole(Role.COLLABORATOR, Role.OWNER)
+@SetRole(Role.COLLABORATOR, Role.OWNER)   // Default auth role for this controller
 export class ProjectDashboardController {
 
   constructor(
@@ -136,6 +137,19 @@ export class ProjectDashboardController {
   @Patch('toggle-notifications')
   public async toggleNotifications(@CurrentProject() project: Project) {
     project.notificationsEnabled = !project.notificationsEnabled;
+    return await project.save();
+  }
+
+  @Patch('user-access')
+  @SetRole(Role.OWNER)
+  public async updateUserAccess(@CurrentProject() project: Project, @Body("users") studentIds: string[]) {
+    // We add the owner to the list of students to keep as collaborators
+    studentIds.push(project.creator.studentId);
+    const users = await User.find({ where: { studentId: In(studentIds) } });
+    // We remove all user that are not in the list
+    project.collaborators = project.collaborators.filter(c => studentIds.includes(c.user.studentId));
+    // We add all users that are in the list
+    project.collaborators.push(...users.map(user => Collaborator.create({ user, project, role: Role.COLLABORATOR })));
     return await project.save();
   }
 
