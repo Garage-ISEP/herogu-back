@@ -1,4 +1,4 @@
-import { Project, ProjectType } from './../database/project.entity';
+import { Project, ProjectType } from '../database/project/project.entity';
 import { DockerService } from './docker.service';
 import { Injectable } from "@nestjs/common";
 

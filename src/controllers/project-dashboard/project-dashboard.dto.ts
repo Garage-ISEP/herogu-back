@@ -1,4 +1,4 @@
-import { PhpLogLevel } from './../../database/php-info.entity';
+import { PhpLogLevel } from '../../database/project/php-info.entity';
 import { IsBoolean, IsEnum } from 'class-validator';
 
 export class PhpLogLevelDto {

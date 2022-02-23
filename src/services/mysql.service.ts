@@ -1,5 +1,5 @@
 import { Container } from 'dockerode';
-import { MysqlInfo } from 'src/database/mysql-info.entity';
+import { MysqlInfo } from 'src/database/project/mysql-info.entity';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";

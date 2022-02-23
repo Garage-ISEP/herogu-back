@@ -1,4 +1,4 @@
-import { Project } from "src/database/project.entity";
+import { Project } from "src/database/project/project.entity";
 import { ContainerStatus } from "./docker/docker-container.model";
 
 export class ProjectStatusResponse {

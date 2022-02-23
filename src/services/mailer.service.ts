@@ -1,4 +1,4 @@
-import { Project } from './../database/project.entity';
+import { Project } from '../database/project/project.entity';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { AppLogger } from 'src/utils/app-logger.util';

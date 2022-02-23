@@ -1,14 +1,14 @@
-import { Project } from './project.entity';
-import { Collaborator } from './collaborator.entity';
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Collaborator } from '../collaborator/collaborator.entity';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { AppEntity } from '../app.entity';
 
 @Entity()
-export class User extends BaseEntity {
-  
+export class User extends AppEntity {
+
 
   @PrimaryColumn({ type: "varchar", length: 9 })
   public id: string;
-  
+
   @Column()
   public firstName: string;
 

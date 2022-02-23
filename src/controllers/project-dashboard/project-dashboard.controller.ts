@@ -1,11 +1,13 @@
+import { ProjectRepository } from 'src/database/project/project.repository';
+import { UserRepository } from 'src/database/user/user.repository';
 import { createQueryBuilder, In } from 'typeorm';
-import { Role, Collaborator } from './../../database/collaborator.entity';
+import { Role, Collaborator } from '../../database/collaborator/collaborator.entity';
 import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
 import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
 import { Observable, map, finalize, Subscriber } from 'rxjs';
-import { Project } from 'src/database/project.entity';
+import { Project } from 'src/database/project/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { ProjectGuard } from 'src/guards/project.guard';
@@ -17,9 +19,11 @@ import { MysqlService } from 'src/services/mysql.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
-import { MysqlInfo } from 'src/database/mysql-info.entity';
+import { MysqlInfo } from 'src/database/project/mysql-info.entity';
 import { SetRole } from 'src/decorators/role.decorator';
-import { User } from 'src/database/user.entity';
+import { User } from 'src/database/user/user.entity';
+import { CollaboratorRepository } from 'src/database/collaborator/collaborator.repository';
+import { InjectRepository } from '@nestjs/typeorm';
 
 
 @Controller('project/:id')
@@ -32,7 +36,10 @@ export class ProjectDashboardController {
     private readonly _github: GithubService,
     private readonly _docker: DockerService,
     private readonly _mysql: MysqlService,
-    private readonly _config: ConfigService
+    private readonly _config: ConfigService,
+    private readonly _collabRepo: CollaboratorRepository,
+    private readonly _userRepo: UserRepository,
+    private readonly _projectRepo: ProjectRepository,
   ) { }
 
   private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
@@ -136,16 +143,18 @@ export class ProjectDashboardController {
 
   @Patch('toggle-notifications')
   public async toggleNotifications(@CurrentProject() project: Project) {
-    project.notificationsEnabled = !project.notificationsEnabled;
-    return await project.save();
+      await this._projectRepo.toggleNotifications(project.id);
+      project.notificationsEnabled = !project.notificationsEnabled;
+      return project;
   }
 
   @Patch('user-access')
   @SetRole(Role.OWNER)
-  public async updateUserAccess(@CurrentProject() project: Project, @Body("users") studentIds: string[]) {
-    project.collaborators = studentIds.map(userId => Collaborator.create({ userId, projectId: project.id, role: Role.COLLABORATOR }));
-    project.collaborators.push(Collaborator.create({ userId: project.creatorId, projectId: project.id, role: Role.OWNER }));
-    return await project.save();
+  public async updateUserAccess(@CurrentProject() project: Project, @Body("users") userIds: string[]) {
+    userIds = await this._userRepo.filterUserList(userIds);
+    userIds.push(project.creatorId);
+    project.collaborators = await this._collabRepo.updateProjectCollaborators(project, userIds);
+    return project;
   }
 
   @Sse('status')

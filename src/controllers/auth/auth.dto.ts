@@ -1,5 +1,5 @@
 import { IsEmail, IsNotEmpty, MinLength, ValidateIf } from "class-validator";
-import { User } from "src/database/user.entity";
+import { User } from "src/database/user/user.entity";
 
 export class LoginDto {
 

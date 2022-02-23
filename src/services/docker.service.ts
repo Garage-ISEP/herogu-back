@@ -1,6 +1,6 @@
 import { DockerDf } from './../models/docker/docker-df.model';
 import { CacheMap } from './../utils/cache.util';
-import { Project } from 'src/database/project.entity';
+import { Project } from 'src/database/project/project.entity';
 import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException, DockerContainerRemoveException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';

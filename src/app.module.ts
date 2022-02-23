@@ -1,3 +1,6 @@
+import { CollaboratorRepository } from './database/collaborator/collaborator.repository';
+import { UserRepository } from 'src/database/user/user.repository';
+import { ProjectRepository } from 'src/database/project/project.repository';
 import { ConfigService } from './services/config.service';
 import { MysqlService } from './services/mysql.service';
 import { AppLogger } from './utils/app-logger.util';
@@ -32,6 +35,7 @@ import { StorageService } from './services/storage.service';
       synchronize: process.env.NODE_ENV === "dev",
       logging: ["error", "warn"],
     }),
+    TypeOrmModule.forFeature([ProjectRepository, UserRepository, CollaboratorRepository]),
     GoogleRecaptchaModule.forRoot({
       secretKey: process.env.RECAPTCHA_SECRET,
       response: req => req.headers.recaptcha,

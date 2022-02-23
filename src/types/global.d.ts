@@ -1,4 +1,4 @@
-import { User } from '../database/user.entity';
+import { User } from '../database/user/user.entity';
 import { Request as ExpressRequest } from "express";
 
 export interface Request extends ExpressRequest {

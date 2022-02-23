@@ -1,6 +1,6 @@
-import { Project } from './project.entity';
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, UpdateDateColumn } from 'typeorm';
-import { User } from './user.entity';
+import { Project } from '../project/project.entity';
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn, RelationId, UpdateDateColumn } from 'typeorm';
+import { User } from '../user/user.entity';
 
 export enum Role {
   OWNER = "OWNER",

@@ -1,10 +1,12 @@
-import { Project } from './../database/project.entity';
+import { ProjectRepository } from 'src/database/project/project.repository';
+import { Project } from '../database/project/project.entity';
 import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { MailerService } from './mailer.service';
 import { DockerDf } from 'src/models/docker/docker-df.model';
 import { IsNull, Not } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -15,6 +17,7 @@ export class StorageService implements OnModuleInit {
     private readonly _logger: AppLogger,
     private readonly _mailer: MailerService,
     private readonly _docker: DockerService,
+    private readonly _projectRepo: ProjectRepository,
   ) { }
 
   public onModuleInit() {
@@ -29,13 +32,7 @@ export class StorageService implements OnModuleInit {
    */
   private async checkStorage() {
     const containers = await this._docker.getContainersDataUsage();
-    const storageActivityProjects = await Project.find({
-      where: [
-        { storageOverageDate: Not(IsNull()) },
-        { storageWarned: true }
-      ],
-      select: ["storageOverageDate", "name", "id", "collaborators", 'storageWarned'],
-    });
+    const storageActivityProjects = await this._projectRepo.getProjectWithStorageIssues();
     this._logger.log("Checking storage limits");
     for (const container of containers) {
       const name = this.getContainerName(container);
@@ -64,7 +61,7 @@ export class StorageService implements OnModuleInit {
    * Set a project storage timeout on the project because the project has exceeded the storage limit
    */
   private async enableStorageTimeout(container: DockerDf.Container, name: string) {
-    const project = await Project.findOne({ where: { name } });
+    const project = await this._projectRepo.findOne({ where: { name } });
     const percentage = ((container.SizeRw / this.storageLimit) * 100).toFixed(0);
     const size = Math.ceil(container.SizeRw / 1000000) + "MB";
     if (project) {
@@ -101,7 +98,7 @@ export class StorageService implements OnModuleInit {
    * Send a mail to the project owner to alert him that his project is soon over the storage limit (90%)
    */
   private async alertStorageLimit(container: DockerDf.Container, name: string) {
-    const project = await Project.findOne({ where: { name } });
+    const project = await this._projectRepo.findOne({ where: { name } });
     const percentage = ((container.SizeRw / this.storageLimit) * 100).toFixed(0);
     const size = Math.ceil(container.SizeRw / 1000000) + "MB";
     if (project && !project.storageWarned) {
@@ -129,7 +126,7 @@ export class StorageService implements OnModuleInit {
    * Remove container and volumes of project
    */
   private async resetProject(container: DockerDf.Container, name: string) {
-    const project = await Project.findOne({ where: { name }, relations: ["collaborators"] });
+    const project = await this._projectRepo.findOne({ where: { name }, relations: ["collaborators"] });
     const percentage = ((container.SizeRw / this.storageLimit) * 100).toFixed(0);
     if (project) {
       try {

@@ -1,11 +1,11 @@
 import { NginxInfo } from './nginx-info.entity';
 import { PhpInfo } from './php-info.entity';
-import { Collaborator } from './collaborator.entity';
-import { User } from './user.entity';
+import { Collaborator } from '../collaborator/collaborator.entity';
+import { User } from '../user/user.entity';
 import { Column, CreateDateColumn, JoinColumn, ManyToOne, OneToMany, OneToOne, RelationId, UpdateDateColumn } from 'typeorm';
 import { Entity, PrimaryGeneratedColumn } from 'typeorm';
-import { BaseEntity } from 'typeorm';
 import { MysqlInfo } from './mysql-info.entity';
+import { AppEntity } from '../app.entity';
 
 
 export enum ProjectType {
@@ -13,7 +13,7 @@ export enum ProjectType {
   PHP = "PHP",
 }
 @Entity()
-export class Project extends BaseEntity {
+export class Project extends AppEntity {
 
   @PrimaryGeneratedColumn("uuid")
   public id: string;

@@ -1,6 +1,7 @@
+import { ProjectRepository } from 'src/database/project/project.repository';
 import { MailerService } from 'src/services/mailer.service';
-import { Project } from 'src/database/project.entity';
-import { ProjectType } from './../database/project.entity';
+import { Project } from 'src/database/project/project.entity';
+import { ProjectType } from '../database/project/project.entity';
 import { Injectable, OnModuleInit, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { App, Octokit } from 'octokit';
 import { PushEvent } from "@octokit/webhooks-types";
@@ -13,6 +14,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import EventSource from "eventsource";
 import strTemplate from "string-template";
 import { CacheMap } from 'src/utils/cache.util';
+import { InjectRepository } from '@nestjs/typeorm';
 @Injectable()
 export class GithubService implements OnModuleInit {
 
@@ -24,6 +26,7 @@ export class GithubService implements OnModuleInit {
     private readonly _logger: AppLogger,
     private readonly adapterHost: HttpAdapterHost,
     private readonly _mailer: MailerService,
+    private readonly _projectRepo: ProjectRepository,
   ) { }
 
   public async onModuleInit() {
@@ -188,7 +191,7 @@ export class GithubService implements OnModuleInit {
       return;
     //Stop if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
-    const project = await Project.findOne({ where: { installationId: event.installation.id }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
+    const project = await this._projectRepo.findOne({ where: { installationId: event.installation.id }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
     if (!project)
       return;
     try {
