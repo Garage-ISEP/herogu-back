@@ -1,3 +1,4 @@
+import { Role, Collaborator } from './../../database/collaborator.entity';
 import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
@@ -16,10 +17,13 @@ import { AppLogger } from 'src/utils/app-logger.util';
 import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
 import { MysqlInfo } from 'src/database/mysql-info.entity';
+import { SetRole } from 'src/decorators/role.decorator';
+import { User } from 'src/database/user.entity';
 
 
 @Controller('project/:id')
 @UseGuards(AuthGuard, ProjectGuard)
+@SetRole(Role.COLLABORATOR, Role.OWNER)
 export class ProjectDashboardController {
 
   constructor(
