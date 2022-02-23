@@ -30,6 +30,7 @@ import { StorageService } from './services/storage.service';
       schema: process.env.DB_SCHEMA,
       entities: ["**/*.entity.js"],
       synchronize: process.env.NODE_ENV === "dev",
+      logging: ["error", "warn"],
     }),
     GoogleRecaptchaModule.forRoot({
       secretKey: process.env.RECAPTCHA_SECRET,
