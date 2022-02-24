@@ -205,11 +205,13 @@ export class DockerService implements OnModuleInit {
   /**
    * Start or stop the container from its tag name
    * throw docker error if can't stop or get container from name
+   * Return true if the container is started
    */
   public async toggleContainerFromName(name: string) {
     const container = await this.getContainerFromName(name);
     const containerInfos = await container.inspect();
     containerInfos.State.Running ? await container.stop() : await container.start();
+    return !containerInfos.State.Running;
   }
 
   public async getContainerFromName(projectName: string) {
