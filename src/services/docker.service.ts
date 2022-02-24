@@ -1,7 +1,7 @@
 import { DockerDf } from './../models/docker/docker-df.model';
 import { CacheMap } from './../utils/cache.util';
 import { Project } from 'src/database/project/project.entity';
-import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException, DockerContainerRemoveException } from './../errors/docker.exception';
+import { DockerImageNotFoundException, NoMysqlContainerException, DockerContainerNotFoundException, DockerImageBuildException, DockerContainerRemoveException, DockerContainerNotStartedException } from './../errors/docker.exception';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';
 import { ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
@@ -499,12 +499,20 @@ export class DockerService implements OnModuleInit {
   public async asyncContainerExec(el: string | Dockerode.Container, ...str: string[]): Promise<string> {
     return new Promise(async (resolve, reject) => {
       let chunks = "";
-      const stream = await this.containerExec(el, ...str);
-      stream.subscribe({
-        next: (chunk: string) => chunks += chunk,
-        error: (e) => reject(e),
-        complete: () => resolve(chunks)
-      });
+      try {
+        const stream = await this.containerExec(el, ...str);
+        stream.subscribe({
+          next: (chunk: string) => chunks += chunk,
+          error: (e) => reject(e),
+          complete: () => resolve(chunks)
+        });
+      } catch (e) {
+        if (e.statusCode == 409)
+          this._logger.error("Could not execute command because container is not started");
+        else
+          this._logger.error("Could not execute command", e);
+        reject(new DockerContainerNotStartedException(el.toString()));
+      }
     })
   }
 }

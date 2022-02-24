@@ -118,24 +118,24 @@ export class ProjectDashboardController {
   @Patch('php-log-level')
   public async updatePhpLogLevel(@CurrentProject() project: Project, @Body() body: PhpLogLevelDto) {
     Object.assign(project.phpInfo, body);
-    await project.save();
     await this._config.updatePhpLogLevel(project);
+    await project.save();
   }
 
   @Patch('http-root-url')
   public async updateHttpRootUrl(@CurrentProject() project: Project, @Body("httpRootUrl") rootDir: string, @Body("httpRootUrlSha") rootDirSha: string) {
     project.nginxInfo.rootDir = rootDir;
     project.nginxInfo.rootDirSha = rootDirSha;
-    await project.save();
     await this._config.updateHttpRootDir(project);
+    await project.save();
   }
 
   @Patch('env')
   public async updateEnv(@CurrentProject() project: Project, @Body("env") env: { [k: string]: string }) {
     if (project.phpInfo)
       project.phpInfo.env = env;
-    await project.save();
     await this._docker.launchContainerFromConfig(project, true);
+    await project.save();
   }
 
   @Patch('toggle-notifications')

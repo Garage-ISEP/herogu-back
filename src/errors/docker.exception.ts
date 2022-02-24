@@ -52,3 +52,8 @@ export class DockerImageBuildException extends InternalServerErrorException {
     super({ code: 6, ...error }, "Docker image build failed with name " + name);
   }
 }
+export class DockerContainerNotStartedException extends InternalServerErrorException {
+  constructor(name?: string) {
+    super({ code: 8 }, "Docker container not started with name " + name);
+  }
+}
