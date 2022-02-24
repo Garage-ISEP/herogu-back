@@ -1,12 +1,11 @@
 import { ProjectRepository } from 'src/database/project/project.repository';
 import { UserRepository } from 'src/database/user/user.repository';
-import { createQueryBuilder, In } from 'typeorm';
-import { Role, Collaborator } from '../../database/collaborator/collaborator.entity';
+import { Role } from '../../database/collaborator/collaborator.entity';
 import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
 import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
-import { Observable, map, finalize, Subscriber } from 'rxjs';
+import { Observable, map, finalize, Subject } from 'rxjs';
 import { Project } from 'src/database/project/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
@@ -19,11 +18,8 @@ import { MysqlService } from 'src/services/mysql.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
-import { MysqlInfo } from 'src/database/project/mysql-info.entity';
 import { SetRole } from 'src/decorators/role.decorator';
-import { User } from 'src/database/user/user.entity';
 import { CollaboratorRepository } from 'src/database/collaborator/collaborator.repository';
-import { InjectRepository } from '@nestjs/typeorm';
 
 
 @Controller('project/:id')
@@ -42,7 +38,7 @@ export class ProjectDashboardController {
     private readonly _projectRepo: ProjectRepository,
   ) { }
 
-  private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
+  private readonly _projectWatchObservables = new Map<string, Subject<ProjectStatusResponse>>();
 
   @Get()
   public async getOne(@CurrentProject() project: Project) {
@@ -116,6 +112,7 @@ export class ProjectDashboardController {
   @Post('toggle')
   public async toggleProject(@CurrentProject() project: Project) {
     await this._docker.toggleContainerFromName(project.name);
+    this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));
   }
 
   @Patch('php-log-level')
@@ -143,9 +140,9 @@ export class ProjectDashboardController {
 
   @Patch('toggle-notifications')
   public async toggleNotifications(@CurrentProject() project: Project) {
-      await this._projectRepo.toggleNotifications(project.id);
-      project.notificationsEnabled = !project.notificationsEnabled;
-      return project;
+    await this._projectRepo.toggleNotifications(project.id);
+    project.notificationsEnabled = !project.notificationsEnabled;
+    return project;
   }
 
   @Patch('user-access')
@@ -160,35 +157,39 @@ export class ProjectDashboardController {
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
-    return new Observable(subscriber => {
-      this._projectWatchObservables.set(project.id, subscriber);
+    let subject: Subject<ProjectStatusResponse>;
+    if (this._projectWatchObservables.has(project.id))
+      subject = this._projectWatchObservables.get(project.id);
+    else {
+      subject = new Subject<ProjectStatusResponse>();
+      this._projectWatchObservables.set(project.id, subject);
+    }
 
-      if (project.mysqlEnabled) {
-        this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
-          .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
-          .catch(e => {
-            this._logger.error("Mysql verification error", e);
-            subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
-          });
-      }
+    if (project.mysqlEnabled) {
+      this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
+        .then(healthy => healthy ? subject.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
+        .catch(e => {
+          this._logger.error("Mysql verification error", e);
+          subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
+        });
+    }
+    this._docker.listenContainerStatus(project.name)
+      .then(statusObs => statusObs.subscribe({
+        next: status => subject.next(new ProjectStatusResponse(status[0], "docker", status[1]))
+      }))
+      .catch(e => {
+        subject.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
+        this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
+      });
+    this._docker.imageExists(project.name)
+      .then(exists => exists ? subject.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")))
+      .catch(e => {
+        this._logger.error("Image verification error", e);
+        subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image"));
+      });
 
-      this._docker.listenContainerStatus(project.name)
-        .then(statusObs => statusObs.subscribe({
-          next: status => subscriber.next(new ProjectStatusResponse(status[0], "docker", status[1]))
-        }))
-        .catch(e => {
-          subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
-          this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
-        });
-      this._docker.imageExists(project.name)
-        .then(exists => exists ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")))
-        .catch(e => {
-          this._logger.error("Image verification error", e);
-          subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image"));
-        });
-    }).pipe(
+    return subject.pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
-      finalize(() => this._projectWatchObservables.delete(project.id))
     );
   }
 

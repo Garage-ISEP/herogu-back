@@ -224,17 +224,29 @@ export class DockerService implements OnModuleInit {
   }
 
   /**
-   * Listen container Status changes
-   * The handler will be called with the actual status at the end of this method
-   * Throw an error if there is no container with this name
+   * Create or get a container status listener
+   * Re-emit its current status so that new clients can have a report of the current status
    */
-  public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number]>> {
-    const id = await this._getContainerIdFromName(name);
-    const observable = new Observable<[ContainerStatus, number]>(observer => {
-      this._statusListeners.set(id, observer);
-      this._checkStatusEvents(id);
-    });
-    return observable;
+  public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number?]>> {
+    if (this._statusListeners.has(name)) {
+      const subject = this._statusListeners.get(name);
+      this._emitContainerStatus(name).catch(e => {
+        console.error(e);
+        subject.error("Error while listening container status")
+      });
+      const obs = new Observable<[ContainerStatus, number?]>();
+      obs.subscribe(subject);
+      return obs;
+    }
+    else {
+      return new Observable(observer => {
+        this._statusListeners.set(name, observer);
+        this._emitContainerStatus(name).catch(e => {
+          console.error(e);
+          observer.error("Error while listening container status")
+        });
+      });
+    }
   }
 
   public async imageExists(name: string): Promise<boolean> {
@@ -247,8 +259,7 @@ export class DockerService implements OnModuleInit {
 
 
   /**
-   * Listen all docker container event,
-   * If a container listener is added then the handler for this listener is triggerred
+   * Listen all docker container event and redispatch them to the right observer
    */
   private async _listenStatusEvents() {
     const allowedActions: Partial<keyof typeof ContainerEvents>[] = [
@@ -264,14 +275,10 @@ export class DockerService implements OnModuleInit {
     try {
       (await this._docker.getEvents()).on("data", async (rawData) => {
         const data: EventResponse = JSON.parse(rawData);
-        if (data.Type == "container" &&
-          allowedActions.includes(data.Action as keyof typeof ContainerEvents) &&
-          this._statusListeners.has(data.Actor.ID)) {
-          try {
-            this._checkStatusEvents(data.Actor.ID);
-          } catch (e) {
-            this._logger.error(e);
-          }
+        if (data.Type == "container" &&                                             // If the event is a container event
+          allowedActions.includes(data.Action as keyof typeof ContainerEvents) &&   // If it is a part of the registered actions
+          this._statusListeners.has(data.Actor.Attributes?.name)) {                 // If there is observers for this event
+          this._checkStatusEvents(data);
         }
       });
     } catch (e) {
@@ -279,23 +286,61 @@ export class DockerService implements OnModuleInit {
     }
   }
 
-  private async _checkStatusEvents(containerId: string) {
-    let state: Dockerode.ContainerInspectInfo["State"];
-    const handler = this._statusListeners.get(containerId);
-    try {
-      state = (await this._docker.getContainer(containerId).inspect()).State;
-    } catch (e) {
+  /**
+   * Check a given status event and redispatch it to the right observer
+   * If we flag a destroy event, we recheck 5s later to see if the container is still destroyed
+   * @param event The event to redispatch
+   */
+  private _checkStatusEvents(event: EventResponse) {
+    const name = event.Actor.Attributes.name;
+    const handler = this._statusListeners.get(name);
+    if (!handler)
+      return;
+    if (event.Action == "restart") handler.next([ContainerStatus.Restarting]);
+    else if (event.Action == "stop") handler.next([ContainerStatus.Stopped]);
+    else if (event.Action == "destroy") {
       handler.next([ContainerStatus.NotFound]);
-      handler.complete();
-      this._statusListeners.delete(containerId);
+      this._containerIdMap.delete(name);
+      setTimeout(() => this._removeContainerHandler(name), 5000);
     }
-    if (!state)
-      handler.next([ContainerStatus.NotFound]);
-    else {
+    else handler.next([ContainerStatus.Running]);
+  }
+
+  private async _emitContainerStatus(name: string) {
+    const handler = this._statusListeners.get(name);
+    try {
+      const state = (await this.getContainerInfosFromName(name)).State;
       if (state.Restarting) handler.next([ContainerStatus.Restarting]);
       else if (state.Running) handler.next([ContainerStatus.Running]);
       else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
       else if (!state.Running) handler.next([ContainerStatus.Stopped, state.ExitCode]);
+    } catch (e) {
+      this._containerIdMap.delete(name);
+      if (handler) {
+        handler.next([ContainerStatus.NotFound]);
+        handler.complete();
+      } else {
+        setTimeout(() => this._removeContainerHandler(name), 5000);
+        console.error(e);
+      }
+    }
+  }
+
+  /**
+   * This will check if a given handler still have a container
+   * If not the handler will be removed and all the observers will be unsubscribed
+   * @param name The name of the container / handler
+   */
+  private async _removeContainerHandler(name: string) {
+    const handler = this._statusListeners.get(name);
+    if (handler) {
+      try {
+        await this._getContainerIdFromName(name);
+      } catch (e) {
+        this._logger.log("Removing container handler", name, "for as it doesn't exists anymore");
+        handler.complete();
+        this._statusListeners.delete(name);
+      }
     }
   }
 
