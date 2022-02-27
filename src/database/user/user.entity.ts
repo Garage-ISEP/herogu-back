@@ -21,6 +21,9 @@ export class User extends AppEntity {
   @Column({ default: false })
   public admin: boolean;
 
+  @Column()
+  public graduatingYear: number;
+
   @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: ["update"] })
   public collaborators: Collaborator[];
 

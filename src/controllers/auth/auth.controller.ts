@@ -14,7 +14,7 @@ export class AuthController {
   constructor(
     private readonly _sso: SsoService,
     private readonly _logger: AppLogger,
-        private readonly _userRepo: UserRepository
+    private readonly _userRepo: UserRepository
   ) { }
 
   @Get("me")
@@ -36,11 +36,18 @@ export class AuthController {
     const token = await this._sso.login(creds.studentId, creds.password);
     if (!user) {
       const ssoUser = await this._sso.getUser(token);
+      const groups = ssoUser.groups.split('; ');
+      const now = new Date();
+      const graduatingYear = (now.getMonth() < 10 ? now.getFullYear() - 1 : now.getFullYear()) + 3;
+      // We verify that the user is in the A1 group for the graduating year
+      if (!groups.includes('eleve') || ssoUser.titre != 'ING-A1-' + graduatingYear)
+        throw new ForbiddenException("You are not allowed to login");
       user = await this._userRepo.create({
         firstName: ssoUser.prenom,
         lastName: ssoUser.nom,
         mail: ssoUser.mail,
-        id: creds.studentId
+        id: creds.studentId,
+        graduatingYear,
       }).save();
     }
     try {
