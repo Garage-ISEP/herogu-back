@@ -15,13 +15,12 @@ export class SsoService {
   /**
    * Loggin with the SSO portal
    * In case of bad credential throw an error
-   * TODO: Make a correct regex for token extraction
    * @returns a sso token to possibly get user infos
    */
   public async login(username: string, password: string): Promise<string> {
     try {
       const response = await firstValueFrom(this._http.post('https://sso-portal.isep.fr', qs.stringify({ user: username, password })));
-      return response.headers["set-cookie"][0].split(";").find((el: string) => el.split("=")[0] === "lemonldap").split("=")[1];
+      return response.headers["set-cookie"][0].match(/lemonldap=([^;]+);/)[1];
     } catch (e) {
       if (e.response.data.error == 5)
         throw new ForbiddenException("Bad credentials");
