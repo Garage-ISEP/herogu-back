@@ -42,7 +42,7 @@ display_errors = ${PHP_DISPLAY_ERROR}
 * The PHP dynamic Dockerfile will use a base image generated and stored on the garageisep repositories from the following Dockerfile : [config/php/Dockerfile.base](config/php/Dockerfile.base)
 
 ## Authentication
-User authentication is made with the SSO service of ISEP. Thanks to that, students can login with their school creds easily. [See corresponding service](src\services\sso.service.ts).
+User authentication is made with the SSO service of ISEP. Thanks to that, students can login with their school creds easily. [See corresponding service](src/services/sso.service.ts).
 Password are not stored from our side, we only keep:
  * Firstname Name
  * Student Mail Adress
@@ -53,7 +53,7 @@ Password are not stored from our side, we only keep:
 Mail system is using Google Suite services to send mails to students. [See corresponding service](src/services/mailer.service.ts).
 
 ## Github
-Github system allow Herogu to interact with a Github App and the repositories where the App is on. [See correspondig service](src\services\github.service.ts).
+Github system allow Herogu to interact with a Github App and the repositories where the App is on. [See correspondig service](src/services/github.service.ts).
 
 Thanks to this bot we can then:
  * Upload config files to a project repository
