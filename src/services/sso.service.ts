@@ -12,6 +12,12 @@ export class SsoService {
     private readonly _logger: AppLogger,
   ) { }
 
+  /**
+   * Loggin with the SSO portal
+   * In case of bad credential throw an error
+   * TODO: Make a correct regex for token extraction
+   * @returns a sso token to possibly get user infos
+   */
   public async login(username: string, password: string): Promise<string> {
     try {
       const response = await firstValueFrom(this._http.post('https://sso-portal.isep.fr', qs.stringify({ user: username, password })));
@@ -26,6 +32,11 @@ export class SsoService {
     }
   }
 
+  /**
+   * Get user infos from the SSO portal
+   * @param token The token from the authentified user
+   * @returns A Promise with the user infos
+   */
   public async getUser(token: string): Promise<SsoInfo> {
     try {
       const response = await firstValueFrom(this._http.get<SsoInfo>(`https://sso-portal.isep.fr/session/my/global`, {

@@ -2,6 +2,10 @@ import { Project } from '../database/project/project.entity';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { AppLogger } from 'src/utils/app-logger.util';
+
+/**
+ * Dynamic configuration from G Suite
+ */
 const mailConf = require("../../mail.conf.json");
 @Injectable()
 export class MailerService implements OnModuleInit {
@@ -32,6 +36,11 @@ export class MailerService implements OnModuleInit {
     return this;
   }
 
+  /**
+   * Send a mail to all project collaborators
+   * @param project The project to send the mail to
+   * @param message The message to send
+   */
   public async sendMailToProject(project: Project, message: string) {
     try {
       await this._transporter.sendMail({

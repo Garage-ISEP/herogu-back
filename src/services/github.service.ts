@@ -14,21 +14,28 @@ import { HttpAdapterHost } from '@nestjs/core';
 import EventSource from "eventsource";
 import strTemplate from "string-template";
 import { CacheMap } from 'src/utils/cache.util';
-import { InjectRepository } from '@nestjs/typeorm';
 @Injectable()
 export class GithubService implements OnModuleInit {
 
+  // The github client
   private _client: App;
+
+  // A cache for the installation ids to avoid refetching them
   private readonly _installationIdMap: CacheMap<string, number> = new CacheMap(60_000 * 10);
+
+  // Callback for the github webhook
   public onContainerUpdate: (project: Project) => Promise<any>;
 
   constructor(
     private readonly _logger: AppLogger,
-    private readonly adapterHost: HttpAdapterHost,
+    private readonly _adapterHost: HttpAdapterHost,
     private readonly _mailer: MailerService,
     private readonly _projectRepo: ProjectRepository,
   ) { }
 
+  /**
+   * Authenticate the github client with a private key and check the connection
+   */
   public async onModuleInit() {
     this._client = new App({
       appId: process.env.GITHUB_ID,
@@ -44,13 +51,20 @@ export class GithubService implements OnModuleInit {
     this.initWebhooks();
   }
 
+  /**
+   * Modify current nest routes to add a new dynamic route receiving all github events.
+   */
   private initWebhooks() {
     try {
       this._logger.log("Initializing Github webhooks...");
       const webhooks = new Webhooks({ secret: process.env.GITHUB_WEBHOOK_SECRET });
-      this.adapterHost.httpAdapter.use(createNodeMiddleware(webhooks, { path: "/github/event", log: this._logger }));
+      this._adapterHost.httpAdapter.use(createNodeMiddleware(webhooks, { path: "/github/event", log: this._logger }));
+      
+      // The Webhooks client can then receive push event that will trigger code
       webhooks.on("push", e => this.onGithubPush(e.payload));
 
+      // We get all events from an EventSource dispatcher
+      // Thank to that we can have multiple receivers for the same event
       const source = new EventSource(process.env.EVENT_SOURCE);
       source.onmessage = (event) => {
         const webhookEvent = JSON.parse(event.data);
@@ -69,12 +83,19 @@ export class GithubService implements OnModuleInit {
     }
   }
 
+  /**
+   * @param repo A repo identifier (url or owner/repo) or an installation id to identify the installation
+   * @returns An installation client 
+   */
   private async _getInstallation(repo: RepoInfo | number) {
     repo = typeof repo != "number" ? await this.getInstallationId(repo) : repo;
-    const test = await this._client.getInstallationOctokit(repo);
-    return test;
+    const installation = await this._client.getInstallationOctokit(repo);
+    return installation;
   }
 
+  /**
+   * Get an installation id from a repo identifier (url or owner/repo)
+   */
   public async getInstallationId(url: RepoInfo) {
     const [owner, repo] = this.getRepoFromUrl(url);
     if (this._installationIdMap.has(`${owner}/${repo}`))
@@ -84,13 +105,19 @@ export class GithubService implements OnModuleInit {
     return repoInstallation.data.id;
   }
 
+  /**
+   * Get a repository folder tree
+   * @param url The repository identifier (url or owner/repo)
+   * @param path An optional path to get the tree of (default root)
+   */
   public async getRepositoryTree(url: RepoInfo, sha?: string) {
     const [owner, repo] = this.getRepoFromUrl(url);
     const octokit = await this._getInstallation(url);
     return await octokit.rest.git.getTree({ owner, repo, tree_sha: sha || await this.getLastCommitSha(url, octokit) });
   }
+
   /**
-   * Create the repo and returns the lists of shas generated from the files
+   * Add or update project configuration to a repository
    */
   public async addOrUpdateConfiguration(project: Project): Promise<string[]> {
     const [owner, repo] = this.getRepoFromUrl(project.githubLink);
@@ -99,6 +126,11 @@ export class GithubService implements OnModuleInit {
     return await this._addFiles(octokit, owner, repo, project.type, project.nginxInfo.rootDir);
   }
 
+  /**
+   * Verifies the Herogu App is installed on the repository and that the main branch is not protected
+   * @param url The repository identifier (url or owner/repo)
+   * @returns a boolean indicating if the installation exists and is accessible
+   */
   public async verifyInstallation(url: RepoInfo) {
     const [owner, repo] = this.getRepoFromUrl(url);
     try {
@@ -112,6 +144,12 @@ export class GithubService implements OnModuleInit {
     }
   }
 
+  /**
+   * Get an installation token in order to execute docker git pull from a direct link.
+   * (e.g https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch})
+   * @param url The repository identifier (url or owner/repo)
+   * @returns An access token to pull the repo from a simple link
+   */
   public async getInstallationToken(url: RepoInfo): Promise<string> {
     const [owner, repo] = this.getRepoFromUrl(url);
     const installationInfo = await this._client.octokit.rest.apps.getRepoInstallation({ owner, repo });
@@ -119,8 +157,12 @@ export class GithubService implements OnModuleInit {
     const data = await octokit.request(`POST https://api.github.com/app/installations/${installationInfo.data.id}/access_tokens`)
     return data.data.token;
   }
+
   /**
-   * Verify the configuration from the different shas
+   * Checks that the repository configuration hasn't been modified
+   * @param url The repository identifier (url or owner/repo)
+   * @param installationId The installation id
+   * @param shas The shas of the files to check, if they dont match, the configuration has been modified
    */
   public async verifyConfiguration(url: string, installationId: number, shas: string[]) {
     if (!shas) return false;
@@ -135,7 +177,7 @@ export class GithubService implements OnModuleInit {
 
   /**
    * Get the previous shas of the files registered on github
-   * @returns a map with the shas of the files
+   * @returns a map with the shas of the files and the file path in key
    */
   private async _getFilesShas(octokit: Octokit, url: RepoInfo): Promise<Map<string, string>> {
     const [owner, repo] = this.getRepoFromUrl(url);
@@ -184,20 +226,26 @@ export class GithubService implements OnModuleInit {
     }
   }
 
+  /**
+   * Method triggered when someone pushes to the repository
+   */
   public async onGithubPush(event: PushEvent) {
     this._logger.log(`Received push event from ${event.repository.full_name}#${event.ref}`);
-    //Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
+    // Regex that extracts the branch from the ref tag only if it is a branch and on the head of the repo
     if (event.ref.match(/(?<=heads\/)[a-zA-Z0-9._-]+$/i)?.[0] !== event.repository.default_branch)
       return;
-    //Stop if the event is trigerred by the bot
+    // Stops if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
     const project = await this._projectRepo.findOne({ where: { installationId: event.installation.id }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
+    // Stops if the project is not found
     if (!project)
       return;
     try {
       this._logger.log("Starting to update project", project.name);
+      // Docker image rebuild and container re-creation
       await this.onContainerUpdate(project);
       this._logger.log(`Successfully update projet ${project.name}`);
+      // In case of enabled notifications we send a notification to all the project collaborators
       if (project.notificationsEnabled) {
         await this._mailer.sendMailToProject(project, `
           Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()}
@@ -208,6 +256,11 @@ export class GithubService implements OnModuleInit {
     }
   }
 
+  /**
+   * Get a repository main branch name
+   * @param url The repository identifier (url or owner/repo)
+   * @param installation An optional installation id or client to avoid refetching it
+   */
   public async getMainBranch(url: RepoInfo, installation?: number | Octokit) {
     const [owner, repo] = this.getRepoFromUrl(url);
     if (!installation)
@@ -218,6 +271,11 @@ export class GithubService implements OnModuleInit {
     return res.data.default_branch;
   }
 
+  /**
+   * Get the sha (identifier) of the last git commit
+   * @param url The repository identifier (url or owner/repo)
+   * @param installation An optional installation id or client to avoid refetching it
+   */
   public async getLastCommitSha(url: RepoInfo, installation?: number | Octokit) {
     const [owner, repo] = this.getRepoFromUrl(url);
     if (!installation)
@@ -229,6 +287,9 @@ export class GithubService implements OnModuleInit {
     return res.data.sha;
   }
 
+  /**
+   * Get a repo identifier from a url (owner/repo)
+   */
   private getRepoFromUrl(repo: RepoInfo): [string, string] {
     if (typeof repo === "string")
       return repo.split("/").slice(-2) as [string, string];
