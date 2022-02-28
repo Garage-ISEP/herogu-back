@@ -30,18 +30,18 @@ export class AuthController {
   @Post('login')
   // @Recaptcha()
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
-    if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
-      throw new ForbiddenException("You are not allowed to login");
+    // if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
+      // throw new ForbiddenException("You are not allowed to login");
     let user = await this._userRepo.getOne(creds.studentId);
     const token = await this._sso.login(creds.studentId, creds.password);
-    if (!user) {
+    if (!user && !creds.admin) {
       const ssoUser = await this._sso.getUser(token);
       const groups = ssoUser.groups.split('; ');
       const now = new Date();
       const graduatingYear = (now.getMonth() < 10 ? now.getFullYear() - 1 : now.getFullYear()) + 3;
       // We verify that the user is in the A1 group for the graduating year
       if (!groups.includes('eleve') || ssoUser.titre != 'ING-A1-' + graduatingYear)
-        throw new ForbiddenException("You are not allowed to login");
+        throw new ForbiddenException({ message: "You are not allowed to login", reason: "promotion" });
       user = await this._userRepo.create({
         firstName: ssoUser.prenom,
         lastName: ssoUser.nom,
@@ -49,7 +49,8 @@ export class AuthController {
         id: creds.studentId,
         graduatingYear,
       }).save();
-    }
+    } else if (creds.admin && !user.admin)
+      throw new ForbiddenException({ message: "Admin access only", reason: "admin" });
     try {
       return new LoginResponse(jwt.sign(user.id, process.env.JWT_SECRET), user);
     } catch (e) {

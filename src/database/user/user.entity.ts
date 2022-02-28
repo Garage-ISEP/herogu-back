@@ -21,6 +21,9 @@ export class User extends AppEntity {
   @Column({ default: false })
   public admin: boolean;
 
+  @Column({ default: false })
+  public banned: boolean;
+
   @Column()
   public graduatingYear: number;
 

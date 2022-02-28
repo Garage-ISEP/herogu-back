@@ -1,5 +1,5 @@
 import { SsoInfo } from './../models/sso.model';
-import { ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ForbiddenException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import qs from 'qs';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { HttpService } from '@nestjs/axios';
@@ -22,8 +22,8 @@ export class SsoService {
       const response = await firstValueFrom(this._http.post('https://sso-portal.isep.fr', qs.stringify({ user: username, password })));
       return response.headers["set-cookie"][0].match(/lemonldap=([^;]+);/)[1];
     } catch (e) {
-      if (e.response.data.error == 5)
-        throw new ForbiddenException("Bad credentials");
+      if (e.response.data?.error == 5)
+        throw new UnauthorizedException("Bad credentials");
       else {
         this._logger.error("Sso error", e);
         throw new InternalServerErrorException("SSO error");
