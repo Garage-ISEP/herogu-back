@@ -46,6 +46,7 @@ export class DockerService implements OnModuleInit {
     if (containerId) {
       await this._removeContainer(containerId, removeVolumes);
       this._containerIdMap.delete(name);
+      this._statusListeners.delete(name);
     }
     this._logger.log("Container removed", name);
   }

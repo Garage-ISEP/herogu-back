@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 export class AdminUserController {
 
   constructor(
-        private readonly _userRepo: UserRepository
+    private readonly _userRepo: UserRepository
   ) { }
 
   @Get()
