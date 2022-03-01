@@ -17,6 +17,8 @@ export class AdminController {
     if (filter.includes("project")) {
       requests.push(createQueryBuilder(Project, 'p')
         .leftJoinAndSelect('p.creator', 'c')
+        .leftJoinAndSelect('p.collaborators', 'co')
+        .leftJoinAndSelect('co.user', 'u')
         .where(`p.name LIKE LOWER(:query) OR p.githubLink LIKE LOWER(:query)`, params)
         .getMany());
     }
