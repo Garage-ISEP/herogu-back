@@ -25,6 +25,8 @@ export class ProjectGuard implements CanActivate {
     const id: string = request.params.id || request.params.project;
     const roles = this._reflector.get<Role[]>('role', context.getHandler()) || this._reflector.get<Role[]>('role', context.getClass())
     try {
+      if (request.meta.user?.admin)
+        return true;
       return await this._collabRepo.exists(id, request.meta.user.id, roles);
     } catch (e) { console.error(e); return false; }
   }
