@@ -189,7 +189,7 @@ export class DockerService implements OnModuleInit {
   private async _removePreviousImage(previousImageId: string, tag: string) {
     try {
       const newImageId = (await this._docker.getImage(tag)?.inspect())?.Id;
-      if (newImageId !== previousImageId) {
+      if (newImageId !== previousImageId && previousImageId) {
         this._logger.log("Removing previous image for", tag, ":", previousImageId);
         await this._docker.getImage(previousImageId).remove({ force: true });
       }
