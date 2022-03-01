@@ -36,7 +36,16 @@ export class ProjectRepository extends BaseRepository<Project> {
   }
 
   public async toggleNotifications(id: string) {
-    await this.createQueryBuilder().update().set({ notificationsEnabled: () => `NOT "notificationsEnabled"` }).where({ id }).execute();
+    await this.createQueryBuilder()
+      .update()
+      .set({ notificationsEnabled: () => `NOT "notificationsEnabled"` })
+      .where({ id }).execute();
+  }
+
+  public async getProjectOwnedBy(id: string) {
+    return await this.createQueryBuilder('p')
+      .where("p.creatorId = :id", { id })
+      .getMany();
   }
 
   public async createProject(req: CreateProjectDto, installationId: number, user: User) {

@@ -1,6 +1,7 @@
 import { Collaborator } from '../collaborator/collaborator.entity';
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
 import { AppEntity } from '../app.entity';
+import { Project } from '../project/project.entity';
 
 @Entity()
 export class User extends AppEntity {
@@ -29,6 +30,9 @@ export class User extends AppEntity {
 
   @OneToMany(() => Collaborator, collaborator => collaborator.user, { cascade: ["update"] })
   public collaborators: Collaborator[];
+
+  @OneToMany(() => Project, project => project.creator, { cascade: ["update"] })
+  public createdProjects: Project[];
 
   @CreateDateColumn()
   public createdDate: Date;

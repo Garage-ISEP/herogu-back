@@ -16,11 +16,13 @@ export class AdminController {
     const params = { query: `%${query}%` };
     if (filter.includes("project")) {
       requests.push(createQueryBuilder(Project, 'p')
+        .leftJoinAndSelect('p.creator', 'c')
         .where(`p.name LIKE LOWER(:query) OR p.githubLink LIKE LOWER(:query)`, params)
         .getMany());
     }
     if (filter.includes("user")) {
       requests.push(createQueryBuilder(User, 'u')
+        .leftJoinAndSelect('u.createdProjects', 'p')
         .where(`CONCAT(u.firstName, u.lastName) LIKE LOWER(:query)`, params)
         .orWhere(`u.mail LIKE LOWER(:query)`, params)
         .getMany());
