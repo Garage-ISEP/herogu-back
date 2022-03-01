@@ -1,9 +1,9 @@
 
-export interface ContainerLabels {
+export type ContainerLabels = Partial<{
   "traefik.enable": string,
   "traefik.http.middlewares.redirect.redirectscheme.scheme": string,
   "herogu.enabled": string,
-}
+}>;
 export interface ContainerLogsConfig {
   detachKeys?: string;
   logs: boolean;
