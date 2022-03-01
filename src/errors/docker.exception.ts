@@ -6,6 +6,11 @@ export class ProjectCreationException extends InternalServerErrorException {
   }
 }
 
+export class ProjectDeletionException extends InternalServerErrorException {
+  constructor(message: string, public code = 0) {
+    super({ reason: message, code });
+  }
+}
 export class ProjectStartingException extends InternalServerErrorException {
   constructor() {
     super({ code: 1 });
@@ -36,9 +41,19 @@ export class DockerContainerNotFoundException extends InternalServerErrorExcepti
   }
 }
 
+export class DockerContainerRemoveException extends InternalServerErrorException {
+  constructor(name?: string) {
+    super({ code: 7 }, "Impossible to delete docker container with name " + name);
+  }
+}
 
 export class DockerImageBuildException extends InternalServerErrorException {
   constructor(error?: Error, name?: string) {
     super({ code: 6, ...error }, "Docker image build failed with name " + name);
+  }
+}
+export class DockerContainerNotStartedException extends InternalServerErrorException {
+  constructor(name?: string) {
+    super({ code: 8 }, "Docker container not started with name " + name);
   }
 }

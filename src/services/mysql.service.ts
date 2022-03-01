@@ -1,13 +1,14 @@
+import { Container } from 'dockerode';
+import { MysqlInfo } from 'src/database/project/mysql-info.entity';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { NoMysqlContainerException, ProjectCreationException } from 'src/errors/docker.exception';
-import { DbCredentials } from 'src/models/docker/docker-container.model';
-import { generatePassword } from 'src/utils/string.util';
+import { ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
 
 @Injectable()
 export class MysqlService implements OnModuleInit {
 
+  private _mysqlContainer: Container;
   constructor(
     private readonly _docker: DockerService,
     private readonly _logger: AppLogger
@@ -16,10 +17,10 @@ export class MysqlService implements OnModuleInit {
   public async onModuleInit() {
     try {
       this._logger.log("Checking Mysql container...");
-      await this._docker.getMysqlContainerInfo();
+      this._mysqlContainer = await this._docker.getMysqlContainer();
       this._logger.log("Mysql container is running");
     } catch (e) {
-      this._logger.error("Mysql container not started", e);
+      this._logger.error("Mysql container not started");
     }
   }
 
@@ -36,19 +37,14 @@ export class MysqlService implements OnModuleInit {
  * Create a mysql db with user
  * An optional sql fileName can be provided to hydrate the db 
  */
-  public async createMysqlDBWithUser(projectName: string, dbName?: string, username?: string, password?: string): Promise<DbCredentials> {
-    const creds = new DbCredentials(
-      dbName || generatePassword(6) + "_" + projectName.substring(0, 10),
-      username || generatePassword(6) + "_" + projectName.substring(0, 10),
-      password || generatePassword()
-    );
+  public async createMysqlDBWithUser(creds: MysqlInfo): Promise<MysqlInfo> {
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.dbName} CHARACTER SET utf8;`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.username}' IDENTIFIED BY '${creds.password}';`);
-      await this._mysqlQuery(`GRANT ALL ON ${creds.dbName}.* TO '${creds.username}';`);
+      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.database} CHARACTER SET utf8;`);
+      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.user}' IDENTIFIED BY '${creds.password}';`);
+      await this._mysqlQuery(`GRANT ALL ON ${creds.database}.* TO '${creds.user}';`);
       await this._mysqlQuery("FLUSH PRIVILEGES;");
-      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.dbName);
-      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.dbName, creds.username, creds.password);
+      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.database);
+      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.database, creds.user, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
@@ -56,14 +52,23 @@ export class MysqlService implements OnModuleInit {
     }
   }
 
-  public async resetMysqlDB(projectName: string, dbName: string, username: string, password: string) {
+  public async resetMysqlDB(creds: MysqlInfo) {
     try {
-      await this._mysqlQuery(`DROP USER IF EXISTS '${username}';`);
-      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${dbName};`);
-      await this.createMysqlDBWithUser(projectName, dbName, username, password);
+      await this.deleteMysqlDB(creds);
+      await this.createMysqlDBWithUser(creds);
     } catch (e) {
       this._logger.error(e);
       throw new ProjectCreationException("Error while resetting DB");
+    }
+  }
+
+  public async deleteMysqlDB(creds: MysqlInfo) {
+    try {
+      await this._mysqlQuery(`DROP USER IF EXISTS '${creds.user}';`);
+      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${creds.database};`);
+    } catch (e) {
+      this._logger.error(e);
+      throw new ProjectDeletionException("Error while deleting DB");
     }
   }
 
@@ -97,31 +102,21 @@ export class MysqlService implements OnModuleInit {
 
   /**
    * Execute bash commands in the mysql container
+   * If the keyword 'error' is detected in the command response, and error is thrown
+   * If the request is not just a existing database test, the mysql response is logged
    */
   private async _mysqlExec(...str: string[]) {
-    const container = await this._docker.getMysqlContainer();
-    return new Promise<void>(async (resolve, reject) => {
-      const stream = (await (await container.exec({
-        Cmd: str,
-        AttachStdout: true,
-        AttachStderr: true,
-        Privileged: true,
-        Tty: true
-      })).start({
-        stdin: true,
-        hijack: true
-      }));
-      stream.on("data", (chunk: string) => {
-        if (!stream.readable) return;
-        if (chunk.toString().toLowerCase().includes("error"))
-          reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-        else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
-          this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
-      })
-        .on("end", () => resolve())
-        .on("error", (e) => reject(`Execution error : ${str.join(" ")}, ${e}`));
+    return await new Promise<void>(async (resolve, reject) => {
+      (await this._docker.containerExec(this._mysqlContainer, ...str)).subscribe({
+        complete: resolve,
+        error: reject,
+        next: chunk => {
+          if (chunk.toString().toLowerCase().includes("error"))
+            reject(`Execution error : ${str.join(" ")}, ${chunk}`);
+          else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
+            this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
+        }
+      });
     });
   }
-
-
 }

@@ -2,6 +2,7 @@
 export interface ContainerLabels {
   "traefik.enable": string,
   "traefik.http.middlewares.redirect.redirectscheme.scheme": string,
+  "herogu.enabled": string,
 }
 export interface ContainerLogsConfig {
   detachKeys?: string;
@@ -62,7 +63,15 @@ export interface EventResponse {
   Action: keyof typeof ContainerEvents | keyof typeof ImageEvents,
   Actor: {
     ID: string;
-    Attributes: { [k: string]: string }
+    Attributes: {
+      ORIGIN: string,
+      'herogu.enabled': boolean,
+      'herogu.sha': string,
+      image: string,
+      maintainer: string,
+      name: string,
+      [k: string]: string | boolean;
+    }
   },
   Time: number,
   TimeNano: number
@@ -78,5 +87,5 @@ export class DbCredentials {
     public dbName: string,
     public username: string,
     public password: string
-  ) {}
+  ) { }
 }

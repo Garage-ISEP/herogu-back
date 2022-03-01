@@ -1,6 +1,12 @@
-import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards } from '@nestjs/common';
-import { Observable, map, finalize, Subscriber } from 'rxjs';
-import { Project } from 'src/database/project.entity';
+import { ProjectRepository } from 'src/database/project/project.repository';
+import { UserRepository } from 'src/database/user/user.repository';
+import { Role } from '../../database/collaborator/collaborator.entity';
+import { ProjectResponse } from './../../models/project.model';
+import { ConfigService } from './../../services/config.service';
+import { PhpLogLevelDto } from './project-dashboard.dto';
+import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
+import { Observable, map, finalize, Subject } from 'rxjs';
+import { Project } from 'src/database/project/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { ProjectGuard } from 'src/guards/project.guard';
@@ -12,10 +18,13 @@ import { MysqlService } from 'src/services/mysql.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
+import { SetRole } from 'src/decorators/role.decorator';
+import { CollaboratorRepository } from 'src/database/collaborator/collaborator.repository';
 
 
 @Controller('project/:id')
 @UseGuards(AuthGuard, ProjectGuard)
+@SetRole(Role.COLLABORATOR, Role.OWNER)   // Default auth role for this controller
 export class ProjectDashboardController {
 
   constructor(
@@ -23,33 +32,43 @@ export class ProjectDashboardController {
     private readonly _github: GithubService,
     private readonly _docker: DockerService,
     private readonly _mysql: MysqlService,
+    private readonly _config: ConfigService,
+    private readonly _collabRepo: CollaboratorRepository,
+    private readonly _userRepo: UserRepository,
+    private readonly _projectRepo: ProjectRepository,
   ) { }
 
-  private readonly _projectWatchObservables = new Map<string, Subscriber<ProjectStatusResponse>>();
+  private readonly _projectWatchObservables = new Map<string, Subject<ProjectStatusResponse>>();
 
   @Get()
   public async getOne(@CurrentProject() project: Project) {
-    return project;
+    try {
+      const containerInfos = await this._docker.getContainerInfosFromName(project.name);
+      return new ProjectResponse(project, containerInfos.SizeRw);
+    } catch (e) {
+      if (e.response?.code == 5)
+        return new ProjectResponse(project, 0);
+      else
+        throw e;
+    }
   }
 
   @Delete()
-  @UseGuards(ProjectGuard)
   public async deleteProject(@CurrentProject() project: Project) {
-    await this._docker.removeContainerFromName(project.name);
+    await this._docker.removeContainerFromName(project.name, true);
     await this._docker.removeImageFromName(project.name);
-    for (const collab of project.collaborators)
-      await collab.remove();
+    if (project.mysqlInfo)
+      await this._mysql.deleteMysqlDB(project.mysqlInfo);
     await project.remove();
     return { success: true };
   }
 
   @Post('github-link')
-  @UseGuards(ProjectGuard)
   public async linkToGithub(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "github"));
-      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.repoId, project.shas)) {
-        project.shas = await this._github.addOrUpdateConfiguration(project.githubLink, project.repoId, project.type);
+      if (!project.shas || !await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
+        project.shas = await this._github.addOrUpdateConfiguration(project);
         await project.save();
       }
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));
@@ -61,12 +80,13 @@ export class ProjectDashboardController {
   }
 
   @Post('docker-link')
-  @UseGuards(ProjectGuard)
   public async linkToDocker(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "docker"));
       await this._docker.launchContainerFromConfig(project);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
+      const containerInfos = await this._docker.getContainerInfosFromName(project.name);
+      return new ProjectResponse(project, containerInfos.SizeRw);
     } catch (e) {
       this._logger.error(e);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "docker"));
@@ -78,12 +98,9 @@ export class ProjectDashboardController {
   public async linkToMysql(@CurrentProject() project: Project, @Body() body: MysqlLinkDto) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
-      const creds = await this._mysql.createMysqlDBWithUser(project.name);
-      project.mysqlUser = creds.username;
-      project.mysqlPassword = creds.password;
-      project.mysqlDatabase = creds.dbName;
+      await this._mysql.createMysqlDBWithUser(project.mysqlInfo);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql"));
-      if (!this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword))
+      if (!this._mysql.checkMysqlConnection(project.mysqlInfo.database, project.mysqlInfo.user, project.mysqlInfo.password))
         this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
     } catch (e) {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"));
@@ -95,30 +112,84 @@ export class ProjectDashboardController {
   @Post('toggle')
   public async toggleProject(@CurrentProject() project: Project) {
     await this._docker.toggleContainerFromName(project.name);
+    this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));
+  }
+
+  @Patch('php-log-level')
+  public async updatePhpLogLevel(@CurrentProject() project: Project, @Body() body: PhpLogLevelDto) {
+    Object.assign(project.phpInfo, body);
+    await this._config.updatePhpLogLevel(project);
+    await project.save();
+  }
+
+  @Patch('http-root-url')
+  public async updateHttpRootUrl(@CurrentProject() project: Project, @Body("httpRootUrl") rootDir: string, @Body("httpRootUrlSha") rootDirSha: string) {
+    project.nginxInfo.rootDir = rootDir;
+    project.nginxInfo.rootDirSha = rootDirSha;
+    await this._config.updateHttpRootDir(project);
+    await project.save();
+  }
+
+  @Patch('env')
+  public async updateEnv(@CurrentProject() project: Project, @Body("env") env: { [k: string]: string }) {
+    if (project.phpInfo)
+      project.phpInfo.env = env;
+    await this._docker.launchContainerFromConfig(project, true);
+    await project.save();
+  }
+
+  @Patch('toggle-notifications')
+  public async toggleNotifications(@CurrentProject() project: Project) {
+    await this._projectRepo.toggleNotifications(project.id);
+    project.notificationsEnabled = !project.notificationsEnabled;
+    return project;
+  }
+
+  @Patch('user-access')
+  @SetRole(Role.OWNER)
+  public async updateUserAccess(@CurrentProject() project: Project, @Body("users") userIds: string[]) {
+    userIds = await this._userRepo.filterUserList(userIds);
+    userIds.push(project.creatorId);
+    project.collaborators = await this._collabRepo.updateProjectCollaborators(project, userIds);
+    return project;
   }
 
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
-    return new Observable(subscriber => {
-      this._projectWatchObservables.set(project.id, subscriber);
+    let subject: Subject<ProjectStatusResponse>;
+    if (this._projectWatchObservables.has(project.id))
+      subject = this._projectWatchObservables.get(project.id);
+    else {
+      subject = new Subject<ProjectStatusResponse>();
+      this._projectWatchObservables.set(project.id, subject);
+    }
 
-      this._mysql.checkMysqlConnection(project.mysqlDatabase, project.mysqlUser, project.mysqlPassword)
-        .then(healthy => healthy ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")));
-
-      this._docker.listenContainerStatus(project.name)
-        .then(statusObs => statusObs.subscribe({
-          next: status => subscriber.next(new ProjectStatusResponse(status[0], "docker", status[1]))
-        }))
+    if (project.mysqlEnabled) {
+      this._mysql.checkMysqlConnection(project.mysqlInfo?.database, project.mysqlInfo?.user, project.mysqlInfo?.password)
+        .then(healthy => healthy ? subject.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "mysql")) : subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql")))
         .catch(e => {
-          // console.error(e);
-          subscriber.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
-          this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
+          this._logger.error("Mysql verification error", e);
+          subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
         });
-      this._docker.imageExists(project.name).then(exists => exists ? subscriber.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subscriber.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")));
-    }).pipe(
+    }
+    this._docker.listenContainerStatus(project.name)
+      .then(statusObs => statusObs.subscribe({
+        next: status => subject.next(new ProjectStatusResponse(status[0], "docker", status[1]))
+      }))
+      .catch(e => {
+        subject.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
+        this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
+      });
+    this._docker.imageExists(project.name)
+      .then(exists => exists ? subject.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")))
+      .catch(e => {
+        this._logger.error("Image verification error", e);
+        subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image"));
+      });
+
+    return subject.pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
-      finalize(() => this._projectWatchObservables.delete(project.id))
     );
   }
 

@@ -1,20 +1,20 @@
+import { UserRepository } from './../../database/user/user.repository';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { AuthGuard } from './../../guards/auth.guard';
-import { BadRequestException, Body, Controller, ForbiddenException, Get, InternalServerErrorException, Patch, Post, UseGuards } from '@nestjs/common';
-import { User } from 'src/database/user.entity';
+import { Body, Controller, ForbiddenException, Get, InternalServerErrorException, Post, UseGuards } from '@nestjs/common';
+import { User } from 'src/database/user/user.entity';
 import { LoginDto, LoginResponse } from './auth.dto';
 import * as jwt from "jsonwebtoken";
 import { CurrentUser } from 'src/decorators/current-user.decorator';
-import { ToManyResendMailException } from 'src/errors/auth.exception';
-import { MailerService } from 'src/services/mailer.service';
-import { Recaptcha } from '@nestlab/google-recaptcha';
 import { SsoService } from 'src/services/sso.service';
+import { InjectRepository } from '@nestjs/typeorm';
 @Controller('auth')
 export class AuthController {
 
   constructor(
     private readonly _sso: SsoService,
-    private readonly _logger: AppLogger
+    private readonly _logger: AppLogger,
+    private readonly _userRepo: UserRepository
   ) { }
 
   @Get("me")
@@ -30,21 +30,29 @@ export class AuthController {
   @Post('login')
   // @Recaptcha()
   public async login(@Body() creds: LoginDto): Promise<LoginResponse> {
-    if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
-      throw new ForbiddenException("You are not allowed to login");
-    let user = await User.findOne({ where: { studentId: creds.studentId }, relations: ["collaborators", "collaborators.project"] });
+    // if (!process.env.ALLOWED_USERS.split(',').includes(creds.studentId))
+      // throw new ForbiddenException("You are not allowed to login");
+    let user = await this._userRepo.getOne(creds.studentId);
     const token = await this._sso.login(creds.studentId, creds.password);
-    if (!user) {
+    if (!user && !creds.admin) {
       const ssoUser = await this._sso.getUser(token);
-      user = await User.create({
+      const groups = ssoUser.groups.split('; ');
+      const now = new Date();
+      const graduatingYear = (now.getMonth() < 10 ? now.getFullYear() - 1 : now.getFullYear()) + 3;
+      // We verify that the user is in the A1 group for the graduating year
+      if (!groups.includes('eleve') || ssoUser.titre != 'ING-A1-' + graduatingYear)
+        throw new ForbiddenException({ message: "You are not allowed to login", reason: "promotion" });
+      user = await this._userRepo.create({
         firstName: ssoUser.prenom,
         lastName: ssoUser.nom,
         mail: ssoUser.mail,
-        studentId: creds.studentId
+        id: creds.studentId,
+        graduatingYear,
       }).save();
-    }
+    } else if (creds.admin && !user.admin)
+      throw new ForbiddenException({ message: "Admin access only", reason: "admin" });
     try {
-      return new LoginResponse(jwt.sign(user.studentId, process.env.JWT_SECRET), user);
+      return new LoginResponse(jwt.sign(user.id, process.env.JWT_SECRET), user);
     } catch (e) {
       this._logger.log("Error during login", e);
       throw new InternalServerErrorException("Error during login");

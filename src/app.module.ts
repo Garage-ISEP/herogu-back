@@ -1,3 +1,7 @@
+import { CollaboratorRepository } from './database/collaborator/collaborator.repository';
+import { UserRepository } from 'src/database/user/user.repository';
+import { ProjectRepository } from 'src/database/project/project.repository';
+import { ConfigService } from './services/config.service';
 import { MysqlService } from './services/mysql.service';
 import { AppLogger } from './utils/app-logger.util';
 import { Module } from '@nestjs/common';
@@ -14,6 +18,8 @@ import { AdminProjectController } from './controllers/admin/project/project.cont
 import { SsoService } from './services/sso.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProjectDashboardController } from './controllers/project-dashboard/project-dashboard.controller';
+import { StorageService } from './services/storage.service';
+import { AdminController } from './controllers/admin/index.controller';
 
 @Module({
   imports: [
@@ -28,7 +34,9 @@ import { ProjectDashboardController } from './controllers/project-dashboard/proj
       schema: process.env.DB_SCHEMA,
       entities: ["**/*.entity.js"],
       synchronize: process.env.NODE_ENV === "dev",
+      logging: ["error", "warn"],
     }),
+    TypeOrmModule.forFeature([ProjectRepository, UserRepository, CollaboratorRepository]),
     GoogleRecaptchaModule.forRoot({
       secretKey: process.env.RECAPTCHA_SECRET,
       response: req => req.headers.recaptcha,
@@ -36,7 +44,7 @@ import { ProjectDashboardController } from './controllers/project-dashboard/proj
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController],
-  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, AppLogger],
+  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController, AdminController],
+  providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, ConfigService, AppLogger, StorageService],
 })
 export class AppModule {}

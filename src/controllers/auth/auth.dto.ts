@@ -1,5 +1,5 @@
-import { IsEmail, IsNotEmpty, MinLength, ValidateIf } from "class-validator";
-import { User } from "src/database/user.entity";
+import { IsEmail, IsNotEmpty, IsOptional, MinLength, ValidateIf } from "class-validator";
+import { User } from "src/database/user/user.entity";
 
 export class LoginDto {
 
@@ -10,6 +10,9 @@ export class LoginDto {
   @MinLength(8)
   @IsNotEmpty()
   public password: string;
+
+  @IsOptional()
+  public admin = false;
 }
 
 export class LoginResponse {

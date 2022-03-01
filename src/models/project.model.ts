@@ -1,3 +1,4 @@
+import { Project } from "src/database/project/project.entity";
 import { ContainerStatus } from "./docker/docker-container.model";
 
 export class ProjectStatusResponse {
@@ -13,3 +14,15 @@ export enum ProjectStatus {
   SUCCESS = "SUCCESS",
 }
 export type Origin = "docker" | "mysql" | "github" | "image";
+
+export class ProjectResponse {
+
+  public readonly maxRwSize = +process.env.CONTAINER_RW_LIMIT;
+
+  constructor(
+    project: Project,
+    public rwSize: number,
+  ) {
+    Object.assign(this, project);
+  }
+}

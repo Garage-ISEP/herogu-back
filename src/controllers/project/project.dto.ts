@@ -1,7 +1,7 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsHash, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
 
 export class CreateProjectDto {
-  @Matches(/^(?!(create|admin|garage|isep|-))([a-z-0-9-]{3,15})[^-]$/)
+  @Matches(/^(?!(create|admin|garage|isep|herogu|-))([a-z-0-9-]{3,15})(?<!-)$/)
   public name: string;
 
   @IsUrl()
@@ -19,6 +19,13 @@ export class CreateProjectDto {
   @IsArray()
   @ArrayMaxSize(10)
   public addedUsers: string[];
+
+  @IsString()
+  public rootDir: string;
+
+  @IsOptional()
+  @IsHash('sha1')
+  public rootDirSha: string;
 
   @IsObject()
   @IsOptional()
