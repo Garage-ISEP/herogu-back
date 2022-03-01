@@ -10,7 +10,7 @@ COPY . .
 
 RUN npm it typescript -g
 
-RUN npm it
+RUN npm it --legacy-peer-deps
 
 RUN npm run build
 
