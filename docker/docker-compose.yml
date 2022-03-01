@@ -11,7 +11,9 @@ services:
       - "web"
     restart: always
     volumes:
-      - ./conf:/app
+      - ./conf/github-private-key.pem:/app/github-private-key.pem
+      - ./conf/mail.conf.json:/app/mail.conf.json
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       # Traefik configuration
       traefik.enable: 'true'
@@ -53,13 +55,13 @@ services:
     labels:
       # Traefik configuration
       traefik.enable: 'true'
-      traefik.http.routers.herogu-front-secure.rule: Host(`admin.herogu.garageisep.com`)
-      traefik.http.routers.herogu-front-secure.entrypoints: websecure
-      traefik.http.routers.herogu-front-secure.tls.certresolver: myhttpchallenge
+      traefik.http.routers.herogu-admin-secure.rule: Host(`admin.herogu.garageisep.com`)
+      traefik.http.routers.herogu-admin-secure.entrypoints: websecure
+      traefik.http.routers.herogu-admin-secure.tls.certresolver: myhttpchallenge
       traefik.http.middlewares.redirect.redirectscheme.scheme: https
-      traefik.http.routers.herogu-front.rule: Host(`admin.herogu.garageisep.com`)
-      traefik.http.routers.herogu-front.entrypoints: web
-      traefik.http.routers.herogu-front.middlewares: redirect
+      traefik.http.routers.herogu-admin.rule: Host(`admin.herogu.garageisep.com`)
+      traefik.http.routers.herogu-admin.entrypoints: web
+      traefik.http.routers.herogu-admin.middlewares: redirect
 
 networks:
   web:
