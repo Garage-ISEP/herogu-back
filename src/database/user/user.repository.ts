@@ -16,4 +16,7 @@ export class UserRepository extends BaseRepository<User> {
   public async filterUserList(userids: string[]) {
     return (await this.find({ select: ["id"], where: { id: In(userids) } })).map(user => user.id);
   }
+  public async toggleAdmin(id: string) {
+    await this.update(id, { admin: () => 'NOT admin' });
+  }
 }

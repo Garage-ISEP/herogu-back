@@ -19,6 +19,7 @@ import { SsoService } from './services/sso.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProjectDashboardController } from './controllers/project-dashboard/project-dashboard.controller';
 import { StorageService } from './services/storage.service';
+import { AdminController } from './controllers/admin/index.controller';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { StorageService } from './services/storage.service';
       network: GoogleRecaptchaNetwork.Recaptcha
     }),
   ],
-  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController],
+  controllers: [AuthController, ProjectController, AdminUserController, AdminProjectController, ProjectDashboardController, AdminController],
   providers: [MailerService, DockerService, GithubService, SsoService, MysqlService, ConfigService, AppLogger, StorageService],
 })
 export class AppModule {}
