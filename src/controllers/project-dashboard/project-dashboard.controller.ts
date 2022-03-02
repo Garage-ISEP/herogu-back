@@ -16,10 +16,11 @@ import { DockerService } from 'src/services/docker.service';
 import { GithubService } from 'src/services/github.service';
 import { MysqlService } from 'src/services/mysql.service';
 import { AppLogger } from 'src/utils/app-logger.util';
-import { MysqlLinkDto } from '../project/project.dto';
 import { MessageEvent } from 'src/models/sse.model';
 import { SetRole } from 'src/decorators/role.decorator';
 import { CollaboratorRepository } from 'src/database/collaborator/collaborator.repository';
+import { CurrentUser } from 'src/decorators/current-user.decorator';
+import { User } from 'src/database/user/user.entity';
 
 
 @Controller('project/:id')
@@ -80,10 +81,10 @@ export class ProjectDashboardController {
   }
 
   @Post('docker-link')
-  public async linkToDocker(@CurrentProject() project: Project) {
+  public async linkToDocker(@CurrentProject() project: Project, @CurrentUser() user: User) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "docker"));
-      await this._docker.launchContainerFromConfig(project);
+      await this._docker.launchContainerFromConfig(project, user.admin);
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
       const containerInfos = await this._docker.getContainerInfosFromName(project.name);
       return new ProjectResponse(project, containerInfos.SizeRw);
@@ -95,7 +96,7 @@ export class ProjectDashboardController {
   }
 
   @Post('mysql-link')
-  public async linkToMysql(@CurrentProject() project: Project, @Body() body: MysqlLinkDto) {
+  public async linkToMysql(@CurrentProject() project: Project) {
     try {
       this._emitProject(project, new ProjectStatusResponse(ProjectStatus.IN_PROGRESS, "mysql"));
       await this._mysql.createMysqlDBWithUser(project.mysqlInfo);

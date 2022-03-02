@@ -32,11 +32,3 @@ export class CreateProjectDto {
   public env: { [key: string]: string } = {};
   
 }
-
-export class MysqlLinkDto {
-
-  @IsString()
-  @MaxLength(100000)
-  @IsOptional()
-  public mysql?: string;
-}
