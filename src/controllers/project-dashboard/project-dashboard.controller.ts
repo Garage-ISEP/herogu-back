@@ -113,7 +113,7 @@ export class ProjectDashboardController {
   @Post('toggle')
   public async toggleProject(@CurrentProject() project: Project) {
     await this._docker.toggleContainerFromName(project.name);
-    this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "github"));
+    this._emitProject(project, new ProjectStatusResponse(ProjectStatus.SUCCESS, "docker"));
   }
 
   @Patch('php-log-level')
