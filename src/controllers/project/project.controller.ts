@@ -54,7 +54,7 @@ export class ProjectController {
 
   @Post('/')
   public async createProject(@Body() req: CreateProjectDto, @CurrentUser() user: User) {
-    if (user.collaborators.filter(c => c.project.creatorId == user.id).length > 0)
+    if (user.collaborators.filter(c => c.project.creatorId == user.id).length > 0 && !user.admin)
       throw new BadRequestException("You already have created a project");
     if (await this._projectRepo.checkIfProjectExists(req.name, req.githubLink.toLowerCase()))
       throw new BadRequestException("This repository has already been registered");
