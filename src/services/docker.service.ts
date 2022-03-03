@@ -143,38 +143,11 @@ export class DockerService implements OnModuleInit {
     for (let i = 0; i < 3; i++) {
       try {
         this._logger.log("Trying to create container :", project.name, "- iteration :", i);
-        const container = await this._docker.createContainer({
-          Image: project.name,
-          name: project.name,
-          Tty: true,
-          Labels: this._getLabels(project.name) as any,
-          HostConfig: {
-            RestartPolicy: { Name: "always" },
-            PortBindings: process.env.NODE_ENV == "dev" ? {
-              "80/tcp": [{ HostPort: "8081" }],
-            } : null,
-            Mounts: [{
-              Source: `${project.name}-config`,
-              Target: '/etc',
-              Type: "volume"
-            }]
-          },
-          ExposedPorts: {
-            '80': {}
-          },
-          Env: this._getEnv(project),
-          // Volumes: {
-          //   [`${project.name}-config`]: {},
-          // },
-          NetworkingConfig: {
-            EndpointsConfig: {
-              web: { Aliases: ["web"] },
-            },
-          },
-        });
+        const container = await this._docker.createContainer(this._getContainerConfig(project));
         await container.start({});
         this._logger.info("Container", project.name, "created and started");
         await this._removePreviousImage(previousImage?.Id, project.name);
+        this._emitContainerStatus(project.name);
         return container;
       } catch (e) {
         error = e;
