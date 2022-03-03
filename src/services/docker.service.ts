@@ -5,23 +5,30 @@ import { DockerImageNotFoundException, NoMysqlContainerException, DockerContaine
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import Dockerode, { Container, ContainerInspectInfo } from 'dockerode';
 import { ContainerEvents, ContainerLabels, ContainerLogsConfig, ContainerStatus, EventResponse } from 'src/models/docker/docker-container.model';
-import { MailerService } from './mailer.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { Observable, Observer } from 'rxjs';
 import { GithubService } from './github.service';
-import { createQueryBuilder } from 'typeorm';
+import { ProjectRepository } from 'src/database/project/project.repository';
+
+/**
+ * Handle all communication with docker socket/api
+ */
 @Injectable()
 export class DockerService implements OnModuleInit {
 
   private readonly _docker = new Dockerode({ socketPath: process.env.DOCKER_HOST });
+  
+  // A map containing all the container status observers
   private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
-  //Stores the container ids from the project name in cache for 10 minutes
+  
+  // Stores the container ids from the project name in cache for 10 minutes
   private readonly _containerIdMap: CacheMap<string, string> = new CacheMap(60_000 * 10);
   constructor(
     private readonly _logger: AppLogger,
-    private readonly _mail: MailerService,
     private readonly _github: GithubService,
+    private readonly _projectRepo: ProjectRepository,
   ) {
+    // We register the github callback so when github are updated, we can rebuild the project
     this._github.onContainerUpdate = (project) => this.launchContainerFromConfig(project, false);
   }
 
@@ -37,6 +44,11 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  /**
+   * Remove a container from its project name
+   * @param name The name of the project
+   * @param removeVolumes Optionnaly remove its volumes
+   */
   public async removeContainerFromName(name: string, removeVolumes = false) {
     let containerId: string;
     this._logger.log("Removing container", removeVolumes ? "and volumes" : "", name);
@@ -51,6 +63,10 @@ export class DockerService implements OnModuleInit {
     this._logger.log("Container removed", name);
   }
 
+
+  /**
+   * Remove an image from its name
+   */
   public async removeImageFromName(name: string) {
     this._logger.log("Removing image", name);
     if (!await this.imageExists(name)) {
@@ -73,6 +89,9 @@ export class DockerService implements OnModuleInit {
       .filter(container => container.Labels["herogu.enabled"] === "true");
   }
 
+  /**
+   * Get all container infos as well as its disk space usage
+   */
   public async getContainerInfosFromName(name: string): Promise<ContainerInspectInfo & { SizeRw: number, SizeRootFs: number }> {
     return await (await this.getContainerFromName(name)).inspect({ size: true }) as ContainerInspectInfo & { SizeRw: number, SizeRootFs: number };
   }
@@ -83,6 +102,7 @@ export class DockerService implements OnModuleInit {
    * The listener is called line by line for the logs
    * Throw an error if the container name doesn't exist
    * Can be used for instance for nodejs container or other
+   * TODO: Redirect PHP logs to container logs and watch the from the herogu client
    */
   public async listenContainerLogs(name: string): Promise<Observable<string>> {
     try {
@@ -110,18 +130,23 @@ export class DockerService implements OnModuleInit {
    * If a container with the same name already exist the former container is stopped and removed
    * In case of failure, it retries 3 times
    * @param project the project with the config we have to deploy
-   * @param force if true, the container will be recreated even if it already exists
+   * @param force if true, the container will be recreated even if it already exists and that it doesn't need rebuilding
    */
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
+    // We verify that configuration hasn't been changed by the user
+    // If its the case we just reset the configuration and we save the config signature
     if (!await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
       this._logger.log("Project configuration is not valid, resetting configuration");
-      project.shas = await this._github.addOrUpdateConfiguration(project);
-      await createQueryBuilder(Project).update().set({ shas: project.shas }).where({ id: project.id }).execute();
+      const shas = await this._github.addOrUpdateConfiguration(project);
+      project.shas = await this._projectRepo.updateShas(project.id, shas);
     }
+    // Image that is going to be rebuilt informations
     const previousImage = await this._tryGetImageInfo(project.name);
     try {
       const repoSha = await this._github.getLastCommitSha(project.githubLink);
       const imageSha = previousImage?.Config.Labels["herogu.sha"];
+      // We compare the commit sha stored in the image with the one from the github repository
+      // If they are different, we rebuild the image
       if (imageSha !== repoSha)
         await this._buildImageFromRemote(project.githubLink, project.name);
       else if (!forceRecreate) {
@@ -134,6 +159,7 @@ export class DockerService implements OnModuleInit {
       throw new DockerImageNotFoundException();
     }
     try {
+      // We remove the container so we can recreate it
       await this.removeContainerFromName(project.name);
     } catch (e) {
       this._logger.error("Error removing container " + project.name, e);
@@ -146,7 +172,9 @@ export class DockerService implements OnModuleInit {
         const container = await this._docker.createContainer(this._getContainerConfig(project));
         await container.start({});
         this._logger.info("Container", project.name, "created and started");
+        // If the container is correctly recreated we can remove the previous image not used anymore if not the same than before
         await this._removePreviousImage(previousImage?.Id, project.name);
+        // We emit to all observers that the container status
         this._emitContainerStatus(project.name);
         return container;
       } catch (e) {
@@ -159,15 +187,26 @@ export class DockerService implements OnModuleInit {
       throw error;
   }
 
+  /**
+   * Remove an image if it was created by herogu and that its name has been re-used
+   * Therefore the image a is not used anymore 
+   */
   private async _removePreviousImage(previousImageId: string, tag: string) {
     try {
+      // We get the image currently used
       const newImageId = (await this._docker.getImage(tag)?.inspect())?.Id;
+      // We ensure that the image is not used anymore (the new and older id are different)
       if (newImageId !== previousImageId && previousImageId) {
         this._logger.log("Removing previous image for", tag, ":", previousImageId);
         await this._docker.getImage(previousImageId).remove({ force: true });
       }
     } catch (e) { }
   }
+
+  /**
+   * Get image information from the given name
+   * @returns the image information or null if the image doesn't exist
+   */
   private async _tryGetImageInfo(tag: string): Promise<Dockerode.ImageInspectInfo | null> {
     try {
       return await this._docker.getImage(tag)?.inspect();
@@ -179,7 +218,7 @@ export class DockerService implements OnModuleInit {
   /**
    * Start or stop the container from its tag name
    * throw docker error if can't stop or get container from name
-   * Return true if the container is started
+   * @returns true if the container is started
    */
   public async toggleContainerFromName(name: string) {
     const container = await this.getContainerFromName(name);
@@ -188,13 +227,11 @@ export class DockerService implements OnModuleInit {
     return !containerInfos.State.Running;
   }
 
+  /**
+   * Get a docker container object from a project name
+   */
   public async getContainerFromName(projectName: string) {
     return this._docker.getContainer(await this._getContainerIdFromName(projectName));
-  }
-  public async getContainerNameFromId(id: string) {
-    const container = await this._docker.getContainer(id);
-    const containerInfos = await container.inspect();
-    return containerInfos.Name.replace("/", "");
   }
 
   /**
@@ -202,27 +239,31 @@ export class DockerService implements OnModuleInit {
    * Re-emit its current status so that new clients can have a report of the current status
    */
   public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number?]>> {
-    if (this._statusListeners.has(name)) {
+    if (this._statusListeners.has(name)) {                          // If there is already a listener for this container
       const subject = this._statusListeners.get(name);
-      this._emitContainerStatus(name).catch(e => {
+      this._emitContainerStatus(name).catch(e => {                  // We re-emit the current status for the new client that called this method
         console.error(e);
-        subject.error("Error while listening container status")
+        subject.error("Error while emitting container status")
       });
-      const obs = new Observable<[ContainerStatus, number?]>();
-      obs.subscribe(subject);
+      const obs = new Observable<[ContainerStatus, number?]>();     // We create a new observable
+      obs.subscribe(subject);                                       // We bind the new observable to the listener
       return obs;
     }
-    else {
-      return new Observable(observer => {
-        this._statusListeners.set(name, observer);
-        this._emitContainerStatus(name).catch(e => {
+    else {                                                          // If there is no listener for this container
+      return new Observable(observer => {                           // We create a new observable
+        this._statusListeners.set(name, observer);                  // We add the listener to the list of listeners
+        this._emitContainerStatus(name).catch(e => {                // We emit the current status for the first time
           console.error(e);
-          observer.error("Error while listening container status")
+          observer.error("Error while emitting container status")
         });
       });
     }
   }
 
+  /**
+   * Check if an image exists
+   * @param name The name of the image / project
+   */
   public async imageExists(name: string): Promise<boolean> {
     try {
       await this._docker.getImage(name).inspect();
@@ -234,6 +275,7 @@ export class DockerService implements OnModuleInit {
 
   /**
    * Listen all docker container event and redispatch them to the right observer
+   * It's called only at the start of the application
    */
   private async _listenStatusEvents() {
     const allowedActions: Partial<keyof typeof ContainerEvents>[] = [
@@ -262,7 +304,7 @@ export class DockerService implements OnModuleInit {
 
   /**
    * Check a given status event and redispatch it to the right observer
-   * If we flag a destroy event, we recheck 5s later to see if the container is still destroyed
+   * If we flag a destroy event, we recheck 5s later to see if the container is still destroyed so we can prevent a destroy event when the container is recreated
    * @param event The event to redispatch
    */
   private _checkStatusEvents(event: EventResponse) {
@@ -280,6 +322,10 @@ export class DockerService implements OnModuleInit {
     else handler.next([ContainerStatus.Running]);
   }
 
+  /**
+   * Emit the current status of a container to all its observers
+   * @param name 
+   */
   private async _emitContainerStatus(name: string) {
     const handler = this._statusListeners.get(name);
     try {
@@ -289,11 +335,14 @@ export class DockerService implements OnModuleInit {
       else if (state.Dead) handler.next([ContainerStatus.Error, state.ExitCode]);
       else if (!state.Running) handler.next([ContainerStatus.Stopped, state.ExitCode]);
     } catch (e) {
+      // In case of an error we delete the container from the cache id
       this._containerIdMap.delete(name);
       if (handler) {
+        // If the handler still exists we emit an error 
         handler.next([ContainerStatus.NotFound]);
         handler.complete();
       } else {
+        // If the handler is already deleted we remove the listener
         setTimeout(() => this._removeContainerHandler(name), 5000);
         console.error(e);
       }
@@ -324,6 +373,7 @@ export class DockerService implements OnModuleInit {
   private async _getContainerIdFromName(name: string): Promise<string | null> {
     if (this._containerIdMap.has(name))
       return this._containerIdMap.get(name);
+    // In docker api the container name is prefixed with a /
     const containerName = "/" + name;
     try {
       for (const el of await this._docker.listContainers({ all: true })) {
@@ -333,6 +383,7 @@ export class DockerService implements OnModuleInit {
         }
       }
     } catch (e) {
+      // If we can't find the container and that it is in the map we remove it
       if (this._containerIdMap.has(name))
         this._containerIdMap.delete(name);
       this._logger.error(e);
@@ -340,12 +391,20 @@ export class DockerService implements OnModuleInit {
     throw new DockerContainerNotFoundException("No container found with name " + name);
   }
 
+  /**
+   * Build an image from a github link
+   * @param url The github link
+   * @param tag The tag of the image (its name)
+   * @param lastCommitSha The last commit sha so we can compare with the current one
+   */
   private async _buildImageFromRemote(url: string, tag: string, lastCommitSha?: string): Promise<void> {
     try {
       const token = await this._github.getInstallationToken(url);
       const mainBranch = await this._github.getMainBranch(url);
       const [owner, repo] = url.split("/").slice(-2);
+      // We fetch the last commit sha if it's not given
       lastCommitSha ??= await this._github.getLastCommitSha(url);
+      // Git url with access token included
       url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
       this._logger.log("Building image from remote: " + url);
       const stream = await this._docker.buildImage({ context: ".", src: [] }, {
@@ -355,19 +414,15 @@ export class DockerService implements OnModuleInit {
         remote: url,
         dockerfile: "docker/Dockerfile",
         labels: {
+          // We had the commit sha to the image metadata
           "herogu.sha": lastCommitSha,
         }
       });
+      // We wait for the build to finish
       await new Promise<void>((resolve, reject) => {
-        stream.on("data", (data) => {
-          this._logger.log(data.toString());
-        });
-        stream.on("error", (e) => {
-          reject(e);
-        });
-        stream.on("end", () => {
-          resolve();
-        });
+        stream.on("data", (data) => this._logger.log(data.toString()));
+        stream.on("error", (e) => reject(e));
+        stream.on("end", () => resolve());
       });
     } catch (e) {
       this._logger.error('Error building image from remote: ' + url, e);
@@ -375,6 +430,9 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  /**
+   * Return labels (principaly traefik configuration) for a given container
+   */
   private _getLabels(name: string): ContainerLabels {
     return {
       "traefik.enable": 'true',
@@ -384,6 +442,11 @@ export class DockerService implements OnModuleInit {
     };
   }
 
+  /**
+   * Get container creation configuration from a project
+   * @param project The project to create the container from
+   * @returns 
+   */
   private _getContainerConfig(project: Project): Dockerode.ContainerCreateOptions {
     return {
       Image: project.name,
@@ -392,9 +455,11 @@ export class DockerService implements OnModuleInit {
       Labels: this._getLabels(project.name) as any,
       HostConfig: {
         RestartPolicy: { Name: "always" },
+        // In dev mode we bind the port to an external port so we don't have to use traefik
         PortBindings: process.env.NODE_ENV == "dev" ? {
           "80/tcp": [{ HostPort: "8081" }],
         } : null,
+        // We create a config volume so we keep nginx/php configs when recreating the container
         Mounts: [{
           Source: `${project.name}-config`,
           Target: '/etc',
@@ -405,6 +470,7 @@ export class DockerService implements OnModuleInit {
         '80': {}
       },
       Env: this._getEnv(project),
+      // Network config to use traefik
       NetworkingConfig: {
         EndpointsConfig: {
           web: { Aliases: ["web"] },
@@ -413,6 +479,11 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  /**
+   * Get the environment variables for the container
+   * Include mysql credentials if the project uses mysql
+   * @param project The project to get the environment variables from
+   */
   private _getEnv(project: Project): string[] {
     return [
       `MYSQL_DATABASE=${project.mysqlInfo?.database}`,
@@ -424,7 +495,8 @@ export class DockerService implements OnModuleInit {
   }
 
   /**
-   * Stop and remove container
+   * Stop and a remove container by its id
+   * Optionnaly remove its volume
    */
   private async _removeContainer(id: string, removeVolumes = false) {
     const container = this._docker.getContainer(id);
@@ -446,11 +518,19 @@ export class DockerService implements OnModuleInit {
     }
   }
 
+  /**
+   * Inspect a container to get a list of its volumes
+   * @param id The id of the container
+   */
   private async _getContainerVolumes(id: string): Promise<Dockerode.Volume[]> {
     const container = this._docker.getContainer(id);
     return (await container.inspect()).Mounts.filter(el => el.Name).map(el => this._docker.getVolume(el.Name));
   }
 
+  /**
+   * Get the mysql container used by all the projects
+   * The mysql container is identified because it has a label 'tag: mysql'
+   */
   public async getMysqlContainer() {
     try {
       const mysqlId = (await this._docker.listContainers()).find(el => el.Labels["tag"] == "mysql").Id;
@@ -492,6 +572,10 @@ export class DockerService implements OnModuleInit {
     });
   }
 
+  /**
+   * Asynchronously execute a command inside a container.
+   * Wraps the method {@link containerExec} and transform its stream into a {@link Promise} 
+   */ 
   public async asyncContainerExec(el: string | Dockerode.Container, ...str: string[]): Promise<string> {
     return new Promise(async (resolve, reject) => {
       let chunks = "";

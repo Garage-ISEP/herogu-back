@@ -48,6 +48,11 @@ export class ProjectRepository extends BaseRepository<Project> {
       .getMany();
   }
 
+  public async updateShas(id: string, shas: string[]) {
+    await this.createQueryBuilder().update().set({ shas: shas }).where({ id }).execute();
+    return shas;
+  }
+
   public async createProject(req: CreateProjectDto, installationId: number, user: User) {
     return await this.create({
       creator: user,

@@ -5,6 +5,10 @@ import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
 
+/**
+ * Handle all communication with mysql container
+ * TODO: use mysql sock instead of container exec
+ */
 @Injectable()
 export class MysqlService implements OnModuleInit {
 
@@ -24,6 +28,9 @@ export class MysqlService implements OnModuleInit {
     }
   }
 
+  /**
+   * Check that a given database exists and is healthy
+   */
   public async checkMysqlConnection(dbName: string, username: string, password: string): Promise<boolean> {
     try {
       await this._mysqlQuery("SELECT 1;", dbName, username, password);
@@ -34,9 +41,8 @@ export class MysqlService implements OnModuleInit {
   }
 
   /**
- * Create a mysql db with user
- * An optional sql fileName can be provided to hydrate the db 
- */
+   * Create a mysql db from a given database name, username and password
+   */
   public async createMysqlDBWithUser(creds: MysqlInfo): Promise<MysqlInfo> {
     try {
       await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.database} CHARACTER SET utf8;`);
@@ -52,6 +58,9 @@ export class MysqlService implements OnModuleInit {
     }
   }
 
+  /**
+   * Remove and recreate an empty with the same creds
+   */
   public async resetMysqlDB(creds: MysqlInfo) {
     try {
       await this.deleteMysqlDB(creds);
@@ -62,6 +71,9 @@ export class MysqlService implements OnModuleInit {
     }
   }
 
+  /**
+   * Delete a mysql database and its user
+   */
   public async deleteMysqlDB(creds: MysqlInfo) {
     try {
       await this._mysqlQuery(`DROP USER IF EXISTS '${creds.user}';`);
@@ -73,28 +85,10 @@ export class MysqlService implements OnModuleInit {
   }
 
   /**
-   * Execute sql commands, for instance from a .sql file
-   */
-  public async execSQLFile(sql: string, dbName: string, username: string, password: string) {
-    // try {
-    //   if (sql) new Parser().parse(sql);      
-    // } catch (e) {
-    //   console.error(e);
-    //   throw new ProjectCreationException("Error when parsing SQL File", 2);
-    // }
-    try {
-      await this._mysqlQuery(sql, dbName, username, password);
-    } catch (e) {
-      this._logger.error(e);
-      console.error(e);
-      throw new ProjectCreationException("Error while adding sql to db");
-    }
-  }
-  /**
-   * Execute a SQL query
+   * Execute a SQL query through mysql cli
    * By default it will execute a query with root creds
    * If specified it will execute a query with the given credentials and database name
- */
+   */
   private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
   }
@@ -113,7 +107,7 @@ export class MysqlService implements OnModuleInit {
         next: chunk => {
           if (chunk.toString().toLowerCase().includes("error"))
             reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-          else if (!chunk.toString().toLowerCase().includes("warning") && !str.reduce((acc, curr) => acc + curr, " ").includes("SELECT 1;"))
+          else if (!chunk.toString().toLowerCase().includes("warning") && !str.join(" ").includes("SELECT 1;"))
             this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
         }
       });

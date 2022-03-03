@@ -50,12 +50,29 @@ Password are not stored from our side, we only keep:
  * Student ID
 
 ## Mailing
-Mail system is using Google Suite services to send mails to students. [See corresponding service](src/services/mailer.service.ts).
+Mail service is using Google Suite services to send mails to students. [See corresponding service](src/services/mailer.service.ts).
 
 ## Github
-Github system allow Herogu to interact with a Github App and the repositories where the App is on. [See correspondig service](src/services/github.service.ts).
+Github service allows Herogu to interact with a Github App and the repositories where the App is on. [See correspondig service](src/services/github.service.ts).
 
 Thanks to this bot we can then:
  * Upload config files to a project repository
  * Verify config integrity
  * Receive webhooks when someone pushes on the main/master branch
+
+## Docker
+Docker service allows Herogu to interact with the Docker api to manage all containers and images (creation, updates, deletion, ...). [See corresponding service](src/services/docker.service.ts)
+
+## Mysql
+Mysql service allow Herogu to manage projects mysql databases through docker sock. [See corresponding service](src/services/mysql.service.ts)
+
+## Storage
+Storage service watch the container storage use. [See corresponding service](src/services/storage.service.ts)
+ * If the container uses more than 90% of the limit defined in the env vars an alert will be sent by email.
+ * If the container uses more than 100% of the limit defined in the env vars a timeout of 48h will be enabled and another alert will be sent. After these 48h if it is not under 100% of the limit the project is reset.
+ * If the container uses more than 150% of the limit it will be instantly reset.
+
+## Container configuration
+Configuration service execute commands in project container to update configurations without recreating the container. [See corresponding service](src/services/config.service.ts). It can:
+ * Update PHP log level or totally disable logs
+ * Update Nginx http root path in project
