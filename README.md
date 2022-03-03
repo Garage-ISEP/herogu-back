@@ -1,5 +1,20 @@
 # Herogu backend
 
+## Requirements
+This project uses:
+* Angular & Material for the [front-office](https://github.com/garage-isep/herogu-front) and [back-office](https://github.com/garage-isep/herogu-admin).
+* Docker for project containerisation & management with the [Docker engine api](https://docs.docker.com/engine/api/v1.41/) and [Dockerode](https://www.npmjs.com/package/dockerode) as wrapper.
+* [Traefik](https://doc.traefik.io/traefik/) for project routing & https signing. 
+* [Cloudflare](https://cloudflare.com) for dns wildcard & https signing.
+* [Github Application and API](https://github.com/apps/herogu-app) to commit & push configurations to repositories, pull repositories to build projects and detect new commits for CI/CD.
+* [G suite](https://workspace.google.fr/) as a mail server provider.
+* [NestJS](https://nestjs.com/) for node rest Api and server design pattern.
+* [TypeORM](https://typeorm.io/#/) & PostgreSQL library for the Herogu Database.
+* [RxJS](https://rxjs.dev/) library to handle streams.
+* [Github Actions](https://github.com/features/actions) for project auto-building.
+* [Github Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) to host projects base images for Dockerfiles. 
+* [Nginx](https://www.nginx.com/) for project hosting into containers
+* [PHP-FPM](https://www.php.net/manual/fr/install.fpm.php) for php based projects
 ## Project deployment
 All deployments are located in : [config/](config/)
 * The PHP folders holds all the configuration to run with PHP-FPM and nginx
