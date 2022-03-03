@@ -384,6 +384,35 @@ export class DockerService implements OnModuleInit {
     };
   }
 
+  private _getContainerConfig(project: Project): Dockerode.ContainerCreateOptions {
+    return {
+      Image: project.name,
+      name: project.name,
+      Tty: true,
+      Labels: this._getLabels(project.name) as any,
+      HostConfig: {
+        RestartPolicy: { Name: "always" },
+        PortBindings: process.env.NODE_ENV == "dev" ? {
+          "80/tcp": [{ HostPort: "8081" }],
+        } : null,
+        Mounts: [{
+          Source: `${project.name}-config`,
+          Target: '/etc',
+          Type: "volume"
+        }]
+      },
+      ExposedPorts: {
+        '80': {}
+      },
+      Env: this._getEnv(project),
+      NetworkingConfig: {
+        EndpointsConfig: {
+          web: { Aliases: ["web"] },
+        },
+      },
+    }
+  }
+
   private _getEnv(project: Project): string[] {
     return [
       `MYSQL_DATABASE=${project.mysqlInfo?.database}`,
