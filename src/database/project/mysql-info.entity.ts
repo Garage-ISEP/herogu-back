@@ -8,8 +8,8 @@ export class MysqlInfo extends BaseEntity {
   constructor(projectName?: string) {
     super();
     if (projectName) {
-      this.database ??= generatePassword(6) + "_" + projectName.substring(0, 10).replace(/-/g, '_');
-      this.user ??= generatePassword(6) + "_" + projectName.substring(0, 10).replace(/-/g, '_');
+      this.database ??= generatePassword(10) + "_" + projectName.substring(0, 10).replace(/-/g, '_');
+      this.user ??= generatePassword(10) + "_" + projectName.substring(0, 10).replace(/-/g, '_');
       this.password ??= generatePassword();
     }
   }
