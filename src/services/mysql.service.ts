@@ -1,30 +1,27 @@
-import { Container } from 'dockerode';
 import { MysqlInfo } from 'src/database/project/mysql-info.entity';
 import { AppLogger } from 'src/utils/app-logger.util';
-import { DockerService } from 'src/services/docker.service';
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ProjectCreationException, ProjectDeletionException } from 'src/errors/docker.exception';
+import * as mysql from "mysql2/promise";
 
 /**
- * Handle all communication with mysql container
- * TODO: use mysql sock instead of container exec
+ * Handle all communication with mysql container through mysql2
  */
 @Injectable()
 export class MysqlService implements OnModuleInit {
 
-  private _mysqlContainer: Container;
+  private _connection: mysql.Connection;
   constructor(
-    private readonly _docker: DockerService,
     private readonly _logger: AppLogger
   ) { }
 
   public async onModuleInit() {
     try {
-      this._logger.log("Checking Mysql container...");
-      this._mysqlContainer = await this._docker.getMysqlContainer();
-      this._logger.log("Mysql container is running");
+      this._logger.log("Checking Mysql connection...");
+      await this._getNewConnection();
+      this._logger.log("Mysql connection OK");
     } catch (e) {
-      this._logger.error("Mysql container not started");
+      this._logger.error("Mysql connection failed", e);
     }
   }
 
@@ -45,12 +42,16 @@ export class MysqlService implements OnModuleInit {
    */
   public async createMysqlDBWithUser(creds: MysqlInfo): Promise<MysqlInfo> {
     try {
-      await this._mysqlQuery(`CREATE DATABASE IF NOT EXISTS ${creds.database} CHARACTER SET utf8;`);
-      await this._mysqlQuery(`CREATE USER IF NOT EXISTS '${creds.user}' IDENTIFIED BY '${creds.password}';`);
-      await this._mysqlQuery(`GRANT ALL ON ${creds.database}.* TO '${creds.user}';`);
-      await this._mysqlQuery("FLUSH PRIVILEGES;");
-      await this._mysqlQuery("CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255));", creds.database);
-      await this._mysqlQuery(`INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !");`, creds.database, creds.user, creds.password);
+      await this._mysqlQuery([
+        `CREATE DATABASE IF NOT EXISTS ${creds.database} CHARACTER SET utf8`,
+        `CREATE USER IF NOT EXISTS '${creds.user}' IDENTIFIED BY '${creds.password}'`,
+        `GRANT ALL ON ${creds.database}.* TO '${creds.user}'`,
+        "FLUSH PRIVILEGES",
+      ]);
+      await this._mysqlQuery([
+        "CREATE TABLE IF NOT EXISTS Bienvenue (Message varchar(255))",
+        `INSERT INTO Bienvenue (Message) VALUES ("Salut ! Tu peux configurer ta BDD avec le logiciel de ton choix !")`,
+      ], creds.database, creds.user, creds.password);
       return creds;
     } catch (e) {
       this._logger.error(e);
@@ -76,8 +77,10 @@ export class MysqlService implements OnModuleInit {
    */
   public async deleteMysqlDB(creds: MysqlInfo) {
     try {
-      await this._mysqlQuery(`DROP USER IF EXISTS '${creds.user}';`);
-      await this._mysqlQuery(`DROP DATABASE IF EXISTS ${creds.database};`);
+      await this._mysqlQuery([
+        `DROP USER IF EXISTS '${creds.user}'`,
+        `DROP DATABASE IF EXISTS ${creds.database}`
+      ]);
     } catch (e) {
       this._logger.error(e);
       throw new ProjectDeletionException("Error while deleting DB");
@@ -85,32 +88,36 @@ export class MysqlService implements OnModuleInit {
   }
 
   /**
-   * Execute a SQL query through mysql cli
+   * Execute a SQL query through mysql socket
    * By default it will execute a query with root creds
    * If specified it will execute a query with the given credentials and database name
    */
-  private async _mysqlQuery(str: string, dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
-    await this._mysqlExec('mysql', `--user=${user}`, `--password=${password}`, dbName ? `-e use ${dbName};${str}` : `-e ${str}`);
+  private async _mysqlQuery(str: string | string[], dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
+    str = typeof str == "string" ? str : str.join(";");
+    this._logger.log(`Executing mysql query [${user}:${password}@${dbName || 'root'}]: ${str}`);
+    try {
+      await this._connection.changeUser({ database: dbName || "mysql", password, user });
+      await this._connection.query(str);
+    } catch (e) {
+      await this._getNewConnection();
+      throw e;
+    }
   }
 
-
-  /**
-   * Execute bash commands in the mysql container
-   * If the keyword 'error' is detected in the command response, and error is thrown
-   * If the request is not just a existing database test, the mysql response is logged
-   */
-  private async _mysqlExec(...str: string[]) {
-    return await new Promise<void>(async (resolve, reject) => {
-      (await this._docker.containerExec(this._mysqlContainer, ...str)).subscribe({
-        complete: resolve,
-        error: reject,
-        next: chunk => {
-          if (chunk.toString().toLowerCase().includes("error"))
-            reject(`Execution error : ${str.join(" ")}, ${chunk}`);
-          else if (!chunk.toString().toLowerCase().includes("warning") && !str.join(" ").includes("SELECT 1;"))
-            this._logger.log(`Mysql command response [${str.join(" ")}] : ${chunk.includes('\n') ? '\n' + chunk : chunk}`);
-        }
+  
+  private async _getNewConnection() {
+    try {
+      this._connection = await mysql.createConnection({
+        host: process.env.MYSQL_HOST,
+        password: process.env.MYSQL_PASSWORD,
+        user: "root",
+        multipleStatements: true,      
+        socketPath: process.env.MYSQL_SOCK || null,
       });
-    });
+      await this._connection.connect();
+    } catch (e) {
+      this._logger.error("Impossible to connect with root creds!");
+      throw e;
+    }
   }
 }
