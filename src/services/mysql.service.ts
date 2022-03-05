@@ -18,7 +18,8 @@ export class MysqlService implements OnModuleInit {
   public async onModuleInit() {
     try {
       this._logger.log("Checking Mysql connection...");
-      await this._getNewConnection();
+      // We keep the root connection always alive
+      this._connection = await this._getNewConnection();
       this._logger.log("Mysql connection OK");
     } catch (e) {
       this._logger.error("Mysql connection failed", e);
@@ -95,28 +96,42 @@ export class MysqlService implements OnModuleInit {
   private async _mysqlQuery(str: string | string[], dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     str = typeof str == "string" ? str : str.join(";");
     this._logger.log(`Executing mysql query [${user}:${password}@${dbName || 'root'}]: ${str}`);
+    let co: mysql.Connection;
     try {
-      await this._connection.changeUser({ database: dbName || "mysql", password, user });
-      await this._connection.query(str);
+      if (user != "root") {
+        co = await this._getNewConnection(dbName, user, password);
+        await co.query(str);
+      } else
+        await this._connection.query(str);
     } catch (e) {
-      await this._getNewConnection();
+      // If the root connection crashed, we try to reconnect
+      if (user == "root")
+        this._connection = await this._getNewConnection();
       throw e;
+    } finally {
+      if (co)
+        await co.end();
     }
   }
 
-  
-  private async _getNewConnection() {
+  /**
+   * Initialize a new mysql connection
+   * By default it will connect with root creds
+   */
+  private async _getNewConnection(dbName = "mysql", user = "root", password = process.env.MYSQL_PASSWORD) {
     try {
-      this._connection = await mysql.createConnection({
+      const co = await mysql.createConnection({
         host: process.env.MYSQL_HOST,
-        password: process.env.MYSQL_PASSWORD,
-        user: "root",
-        multipleStatements: true,      
+        password,
+        user,
+        database: dbName,
+        multipleStatements: true,
         socketPath: process.env.MYSQL_SOCK || null,
       });
-      await this._connection.connect();
+      await co.connect();
+      return co;
     } catch (e) {
-      this._logger.error("Impossible to connect with root creds!");
+      this._logger.error("Impossible to connect!");
       throw e;
     }
   }
