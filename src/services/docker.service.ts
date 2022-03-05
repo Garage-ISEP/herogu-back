@@ -344,7 +344,6 @@ export class DockerService implements OnModuleInit {
       } else {
         // If the handler is already deleted we remove the listener
         setTimeout(() => this._removeContainerHandler(name), 5000);
-        console.error(e);
       }
     }
   }
