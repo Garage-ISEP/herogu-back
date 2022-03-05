@@ -135,11 +135,11 @@ export class DockerService implements OnModuleInit {
   public async launchContainerFromConfig(project: Project, forceRecreate = true): Promise<Container | null> {
     // We verify that configuration hasn't been changed by the user
     // If its the case we just reset the configuration and we save the config signature
-    if (!await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
-      this._logger.log("Project configuration is not valid, resetting configuration");
-      const shas = await this._github.addOrUpdateConfiguration(project);
-      project.shas = await this._projectRepo.updateShas(project.id, shas);
-    }
+    // if (!await this._github.verifyConfiguration(project.githubLink, project.installationId, project.shas)) {
+    //   this._logger.log("Project configuration is not valid, resetting configuration");
+    //   const shas = await this._github.addOrUpdateConfiguration(project);
+    //   project.shas = await this._projectRepo.updateShas(project.id, shas);
+    // }
     // Image that is going to be rebuilt informations
     const previousImage = await this._tryGetImageInfo(project.name);
     try {
