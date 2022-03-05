@@ -21,7 +21,7 @@ export class Project extends AppEntity {
   @Column({ unique: true })
   public name: string;
 
-  @Column()
+  @Column({ unique: true })
   public githubLink: string;
 
   @Column("text", { nullable: true, array: true })

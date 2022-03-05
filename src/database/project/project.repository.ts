@@ -15,7 +15,7 @@ export class ProjectRepository extends BaseRepository<Project> {
 
 
   public async checkIfProjectExists(name: string, githubLink: string): Promise<boolean> {
-    return await this.createQueryBuilder().select().where({ name }).getCount() > 0;
+    return await this.createQueryBuilder().select().where({ name }).orWhere({ githubLink }).getCount() > 0;
   }
   public async getAll(skip?: number, take?: number, query?: string) {
     return await this.createQueryBuilder()
