@@ -56,10 +56,13 @@ export class ProjectDashboardController {
 
   @Delete()
   public async deleteProject(@CurrentProject() project: Project) {
-    await this._docker.removeContainerFromName(project.name, true);
-    await this._docker.removeImageFromName(project.name);
-    if (project.mysqlInfo)
-      await this._mysql.deleteMysqlDB(project.mysqlInfo);
+    await Promise.all([
+      (async () => {
+        await this._docker.removeContainerFromName(project.name, true);
+        await this._docker.removeImageFromName(project.name);
+      })(),
+      project.mysqlInfo ? this._mysql.deleteMysqlDB(project.mysqlInfo) : Promise.resolve(),
+    ]);
     await project.remove();
     return { success: true };
   }
@@ -158,6 +161,8 @@ export class ProjectDashboardController {
   @Sse('status')
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
+    // Sometimes the front tries to connect whereas the project is not shown yet (e.g from the menu)
+    if (!project) return;
     let subject: Subject<ProjectStatusResponse>;
     if (this._projectWatchObservables.has(project.id))
       subject = this._projectWatchObservables.get(project.id);
