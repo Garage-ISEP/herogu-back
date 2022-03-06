@@ -1,11 +1,10 @@
 FROM ghcr.io/garage-isep/herogu-back/herogu-php-base
 
+USER root
+
 COPY ./docker/nginx.conf /etc/nginx/nginx.conf
 
-COPY . /var/www/html
-
-RUN chown -R nginx:www-data /var/www/html
-RUN chmod -R 777 /var/www/html
+COPY --chown=nginx:www-data --chmod=777 . /var/www/html
 
 LABEL ORIGIN herogu.garageisep.com
 

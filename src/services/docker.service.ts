@@ -17,10 +17,10 @@ import { ProjectRepository } from 'src/database/project/project.repository';
 export class DockerService implements OnModuleInit {
 
   private readonly _docker = new Dockerode({ socketPath: process.env.DOCKER_HOST });
-  
+
   // A map containing all the container status observers
   private _statusListeners: Map<string, Observer<[ContainerStatus, number?]>> = new Map();
-  
+
   // Stores the container ids from the project name in cache for 10 minutes
   private readonly _containerIdMap: CacheMap<string, string> = new CacheMap(60_000 * 10);
   constructor(
@@ -408,6 +408,7 @@ export class DockerService implements OnModuleInit {
       this._logger.log("Building image from remote: " + url);
       const stream = await this._docker.buildImage({ context: ".", src: [] }, {
         t: tag,
+        version: 2,
         rm: true,
         forcerm: true,
         remote: url,
@@ -416,13 +417,15 @@ export class DockerService implements OnModuleInit {
           // We had the commit sha to the image metadata
           "herogu.sha": lastCommitSha,
         }
-      });
+      } as Dockerode.ImageBuildOptions);  // We override options type to add custom buildkit version to support chmod
       // We wait for the build to finish
-      await new Promise<void>((resolve, reject) => {
-        stream.on("data", (data) => this._logger.log(data.toString()));
-        stream.on("error", (e) => reject(e));
-        stream.on("end", () => resolve());
+      await new Promise((resolve, reject) => {
+        this._docker.modem.followProgress(stream,
+          (err, res) => err ? reject(err) : resolve(res),
+          data => this._logger.log(`Docker image build [${tag}]: ${data?.toString()}`));
       });
+      if (!await this.imageExists(tag))
+        throw new Error();
     } catch (e) {
       this._logger.error('Error building image from remote: ' + url, e);
       throw new DockerImageBuildException(e, url);
@@ -574,7 +577,7 @@ export class DockerService implements OnModuleInit {
   /**
    * Asynchronously execute a command inside a container.
    * Wraps the method {@link containerExec} and transform its stream into a {@link Promise} 
-   */ 
+   */
   public async asyncContainerExec(el: string | Dockerode.Container, ...str: string[]): Promise<string> {
     return new Promise(async (resolve, reject) => {
       let chunks = "";
