@@ -4,7 +4,7 @@ import { Role } from '../../database/collaborator/collaborator.entity';
 import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
-import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch, BadRequestException } from '@nestjs/common';
 import { Observable, map, finalize, Subject } from 'rxjs';
 import { Project } from 'src/database/project/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
@@ -162,7 +162,7 @@ export class ProjectDashboardController {
   @Header("Transfer-Encoding", "chunked")
   public getStatus(@CurrentProject() project: Project): Observable<MessageEvent<ProjectStatusResponse>> {
     // Sometimes the front tries to connect whereas the project is not shown yet (e.g from the menu)
-    if (!project) return;
+    if (!project) throw new BadRequestException("Project not found");
     let subject: Subject<ProjectStatusResponse>;
     if (this._projectWatchObservables.has(project.id))
       subject = this._projectWatchObservables.get(project.id);
