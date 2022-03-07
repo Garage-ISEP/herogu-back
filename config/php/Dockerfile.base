@@ -42,7 +42,16 @@ RUN apk update
 RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache oniguruma libcurl libcrypto3 curl
 
 # PHP binaries
-RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/community --no-cache php8-fpm php8-pdo_mysql php8-mysqli php8-curl php8-pdo php8-pdo_mysql php8-exif php8-mbstring
+RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/community --no-cache \
+	php8-fpm \
+	php8-pdo_mysql \ 
+	php8-mysqli \ 
+	php8-curl \ 
+	php8-pdo \ 
+	php8-pdo_mysql \ 
+	php8-exif \ 
+	php8-mbstring \ 
+	php8-session
 
 # Nginx binary
 RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache nginx 
