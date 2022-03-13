@@ -10,7 +10,6 @@ import * as mysql from "mysql2/promise";
 @Injectable()
 export class MysqlService implements OnModuleInit {
 
-  private _connection: mysql.Connection;
   constructor(
     private readonly _logger: AppLogger
   ) { }
@@ -18,8 +17,7 @@ export class MysqlService implements OnModuleInit {
   public async onModuleInit() {
     try {
       this._logger.log("Checking Mysql connection...");
-      // We keep the root connection always alive
-      this._connection = await this._getNewConnection();
+      await (await this._getNewConnection()).ping();      
       this._logger.log("Mysql connection OK");
     } catch (e) {
       this._logger.error("Mysql connection failed", e);
@@ -96,17 +94,11 @@ export class MysqlService implements OnModuleInit {
   private async _mysqlQuery(str: string | string[], dbName?: string, user = "root", password = process.env.MYSQL_PASSWORD) {
     str = typeof str == "string" ? str : str.join(";");
     this._logger.log(`Executing mysql query [${user}:${password}@${dbName || 'root'}]: ${str}`);
-    let co: mysql.Connection;
+    let co: mysql.Connection = await this._getNewConnection(dbName, user, password);
     try {
-      if (user != "root") {
-        co = await this._getNewConnection(dbName, user, password);
-        await co.query(str);
-      } else
-        await this._connection.query(str);
+      co = await this._getNewConnection(dbName, user, password);
+      await co.query(str);
     } catch (e) {
-      // If the root connection crashed, we try to reconnect
-      if (user == "root")
-        this._connection = await this._getNewConnection();
       throw e;
     } finally {
       if (co)
