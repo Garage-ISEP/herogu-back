@@ -164,9 +164,12 @@ export class ProjectDashboardController {
     // Sometimes the front tries to connect whereas the project is not shown yet (e.g from the menu)
     if (!project) throw new BadRequestException("Project not found");
     let subject: Subject<ProjectStatusResponse>;
-    if (this._projectWatchObservables.has(project.id))
+    if (this._projectWatchObservables.has(project.id)) {
+      this._logger.log("Reusing existing observable for project " + project.name + " to check status");
       subject = this._projectWatchObservables.get(project.id);
+    }
     else {
+      this._logger.log("Creating new observable for project " + project.name + " to check status");
       subject = new Subject<ProjectStatusResponse>();
       this._projectWatchObservables.set(project.id, subject);
     }
@@ -196,9 +199,13 @@ export class ProjectDashboardController {
     return subject.pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
       finalize(() => {
-        this._logger.log("Observable was closed for project " + project.name);
-        console.log(subject);
-        this._projectWatchObservables.delete(project.id);
+        this._logger.log("Client observer unsubscribed from project status", project.name);
+        if (!subject.observed) {
+          subject.complete();
+          subject.unsubscribe();
+          this._projectWatchObservables.delete(project.id);
+          this._logger.log("Observable closed for project " + project.name);
+        }
       })
     )
   }
