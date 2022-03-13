@@ -5,7 +5,7 @@ import { ProjectResponse } from './../../models/project.model';
 import { ConfigService } from './../../services/config.service';
 import { PhpLogLevelDto } from './project-dashboard.dto';
 import { Body, Controller, Delete, Get, Header, InternalServerErrorException, Post, Sse, UseGuards, Patch, BadRequestException } from '@nestjs/common';
-import { Observable, map, finalize, Subject } from 'rxjs';
+import { Observable, map, finalize, Subject, share, refCount } from 'rxjs';
 import { Project } from 'src/database/project/project.entity';
 import { CurrentProject } from 'src/decorators/current-project.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
@@ -193,10 +193,14 @@ export class ProjectDashboardController {
         this._logger.error("Image verification error", e);
         subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image"));
       });
-
     return subject.pipe(
       map<ProjectStatusResponse, MessageEvent<ProjectStatusResponse>>(response => ({ data: response })),
-    );
+      finalize(() => {
+        this._logger.log("Observable was closed for project " + project.name);
+        console.log(subject);
+        this._projectWatchObservables.delete(project.id);
+      })
+    )
   }
 
   private _emitProject(project: Project, val: ProjectStatusResponse) {
