@@ -13,11 +13,11 @@ This project uses:
 * [RxJS](https://rxjs.dev/) library to handle streams.
 * [Github Actions](https://github.com/features/actions) for project auto-building.
 * [Github Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) to host projects base images for Dockerfiles. 
-* [Nginx](https://www.nginx.com/) for project hosting into containers
-* [PHP-FPM](https://www.php.net/manual/fr/install.fpm.php) for php based projects
+* [Nginx](https://www.nginx.com/) for project hosting into containers.
+* [PHP-FPM](https://www.php.net/manual/fr/install.fpm.php) for php based projects.
 ## Project deployment
 All deployments are located in : [config/](config/)
-* The PHP folders holds all the configuration to run with PHP-FPM and nginx
+* The PHP folders holds all the configuration to run with PHP-FPM and nginx.
 * The [php.ini file](config/php/php.ini) contains vars that will be substituted by docker's env vars :
 
 PHP_ERROR_REPORTING : 
@@ -88,6 +88,6 @@ Storage service watch the container storage use. [See corresponding service](src
  * If the container uses more than 150% of the limit it will be instantly reset.
 
 ## Container configuration
-Configuration service execute commands in project container to update configurations without recreating the container. [See corresponding service](src/services/config.service.ts). It can:
+Configuration service executes commands in project container to update configurations without recreating the container. [See corresponding service](src/services/config.service.ts). It can:
  * Update PHP log level or totally disable logs
  * Update Nginx http root path in project
