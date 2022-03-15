@@ -182,14 +182,25 @@ export class ProjectDashboardController {
           subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "mysql"))
         });
     }
-    this._docker.listenContainerStatus(project.name)
-      .then(statusObs => statusObs.subscribe({
-        next: status => subject.next(new ProjectStatusResponse(status[0], "docker", status[1]))
-      }))
-      .catch(e => {
+    // If it's the first listener we subscribe to the docker event stream status
+    // Or if there is a new docker event stream due to docker container re-creation
+    if (!this._docker.isListeningStatus(project.name) || !subject.observed) {
+      try {
+        const statusObserver = this._docker.listenContainerStatus(project.name);
+        statusObserver.subscribe(status => {
+          subject.next(new ProjectStatusResponse(status[0], "docker", status[1]));
+        });
+      } catch (e) {
         subject.next(new ProjectStatusResponse(ContainerStatus.NotFound, "docker"));
         this._logger.log(`Project ${project.name} tried to listen to container status but container not started!`);
+      }
+    } else { // If it's not the first time we just re-emit current status so the new client can get it
+      this._docker.emitContainerStatus(project.name).catch(e => {
+        console.error(e);
+        subject.error("Error while emitting container status");
       });
+    }
+
     this._docker.imageExists(project.name)
       .then(exists => exists ? subject.next(new ProjectStatusResponse(ProjectStatus.SUCCESS, "image")) : subject.next(new ProjectStatusResponse(ProjectStatus.ERROR, "image")))
       .catch(e => {
@@ -202,7 +213,7 @@ export class ProjectDashboardController {
         this._logger.log("Client observer unsubscribed from project status", project.name);
         if (!subject.observed) {
           subject.complete();
-          subject.unsubscribe();
+          this._docker.stopListeningContainerStatus(project.name);
           this._projectWatchObservables.delete(project.id);
           this._logger.log("Observable closed for project " + project.name);
         }

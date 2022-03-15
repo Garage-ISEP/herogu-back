@@ -174,8 +174,8 @@ export class DockerService implements OnModuleInit {
         this._logger.info("Container", project.name, "created and started");
         // If the container is correctly recreated we can remove the previous image not used anymore if not the same than before
         await this._removePreviousImage(previousImage?.Id, project.name);
-        // We emit to all observers that the container status
-        this._emitContainerStatus(project.name);
+        // We emit to all observers that the container status is listening
+        this.emitContainerStatus(project.name);
         return container;
       } catch (e) {
         error = e;
@@ -234,29 +234,32 @@ export class DockerService implements OnModuleInit {
     return this._docker.getContainer(await this._getContainerIdFromName(projectName));
   }
 
+  public isListeningStatus(name: string): boolean {
+    return this._statusListeners.has(name);
+  }
+
   /**
    * Create or get a container status listener
    * Re-emit its current status so that new clients can have a report of the current status
    */
-  public async listenContainerStatus(name: string): Promise<Observable<[ContainerStatus, number?]>> {
-    if (this._statusListeners.has(name)) {                          // If there is already a listener for this container
-      const subject = this._statusListeners.get(name);
-      this._emitContainerStatus(name).catch(e => {                  // We re-emit the current status for the new client that called this method
-        console.error(e);
-        subject.error("Error while emitting container status")
-      });
-      const obs = new Observable<[ContainerStatus, number?]>();     // We create a new observable
-      obs.subscribe(subject);                                       // We bind the new observable to the listener
-      return obs;
+  public listenContainerStatus(name: string): Observable<[ContainerStatus, number?]> {
+    if (this.isListeningStatus(name)) {                             // If there is already a listener for this container
+      this.stopListeningContainerStatus(name);                      // We stop it
     }
-    else {                                                          // If there is no listener for this container
-      return new Observable(observer => {                           // We create a new observable
-        this._statusListeners.set(name, observer);                  // We add the listener to the list of listeners
-        this._emitContainerStatus(name).catch(e => {                // We emit the current status for the first time
-          console.error(e);
-          observer.error("Error while emitting container status")
-        });
+    const obs = new Observable<[ContainerStatus, number?]>(observer => {
+      this._statusListeners.set(name, observer);
+      this.emitContainerStatus(name, observer).catch(e => {                // We emit the current status for the first time
+        console.error(e);
+        observer.error("Error while emitting container status");
       });
+    });
+    return obs;
+  }
+
+  public async stopListeningContainerStatus(name: string) {
+    if (this._statusListeners.has(name)) {
+      this._statusListeners.get(name).complete();
+      this._statusListeners.delete(name);
     }
   }
 
@@ -326,8 +329,8 @@ export class DockerService implements OnModuleInit {
    * Emit the current status of a container to all its observers
    * @param name 
    */
-  private async _emitContainerStatus(name: string) {
-    const handler = this._statusListeners.get(name);
+  public async emitContainerStatus(name: string, handler?: Observer<[ContainerStatus, number?]>) {
+    handler ??= this._statusListeners.get(name);
     try {
       const state = (await this.getContainerInfosFromName(name)).State;
       if (state.Restarting) handler.next([ContainerStatus.Restarting]);
@@ -360,8 +363,8 @@ export class DockerService implements OnModuleInit {
         await this._getContainerIdFromName(name);
       } catch (e) {
         this._logger.log("Removing container handler", name, "for as it doesn't exists anymore");
-        handler.complete();
-        this._statusListeners.delete(name);
+        this.stopListeningContainerStatus(name);
+        this._containerIdMap.delete(name);
       }
     }
   }
