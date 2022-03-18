@@ -236,10 +236,12 @@ export class GithubService implements OnModuleInit {
       return;
     // Stops if the event is trigerred by the bot
     if (event.sender.login === 'herogu-app[bot]') return;
-    const project = await this._projectRepo.findOne({ where: { installationId: event.installation.id }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
-    // Stops if the project is not found
-    if (!project)
+    const githubLink = `https://github.com/${event.repository.owner.login}/${event.repository.name}`.toLowerCase();
+    const project = await this._projectRepo.findOne({ where: { installationId: event.installation.id, githubLink }, relations: ["nginxInfo", "phpInfo", "mysqlInfo"] });
+    if (!project) {
+      this._logger.log(`${event.repository.full_name}: corresponding project not found`);
       return;
+    }
     try {
       this._logger.log("Starting to update project", project.name);
       // Docker image rebuild and container re-creation
