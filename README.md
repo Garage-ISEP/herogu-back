@@ -1,4 +1,6 @@
-# Herogu backend
+# Herogu
+
+![Herogu](https://user-images.githubusercontent.com/26095587/160254234-e7fc35bf-dceb-48c9-9e6c-879e74b41210.jpg)
 
 ## Requirements
 This project uses:
