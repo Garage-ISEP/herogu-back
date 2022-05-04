@@ -3,7 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import * as rd from "readline";
 
 const baseUrl = "https://api.herogu.garageisep.com/project";
-const token = "eyJhbGciOiJIUzI1NiJ9.dGhwcjYwNzEw.bG22H6sL0vRlUhosZD5cMrSuL9-OSv8UADubsrmLK7Y";
+const token = ""; //JWT token
 const http = new HttpService();
 const options = { headers: { "Authorization": "Bearer " + token } };
 
