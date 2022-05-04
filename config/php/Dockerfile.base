@@ -39,7 +39,7 @@ RUN echo '@edge http://dl-cdn.alpinelinux.org/alpine/edge/main' >> /etc/apk/repo
 RUN apk update
 
 # PHP extension requirements
-RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache oniguruma libcurl libcrypto3 curl
+RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache oniguruma libcurl libcrypto3 curl openssl
 
 # PHP binaries 
 RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/community --no-cache \
