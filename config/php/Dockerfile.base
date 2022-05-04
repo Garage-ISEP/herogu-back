@@ -1,4 +1,4 @@
-FROM alpine:3.9.2
+FROM alpine:3.15
 
 LABEL maintainer="theodore.prevot@garageisep.com" \
 	org.label-schema.name="alpine" \
@@ -41,7 +41,7 @@ RUN apk update
 # PHP extension requirements
 RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/main --no-cache oniguruma libcurl libcrypto3 curl
 
-# PHP binaries
+# PHP binaries 
 RUN apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/community --no-cache \
 	php8-fpm \
 	php8-mysqli \ 

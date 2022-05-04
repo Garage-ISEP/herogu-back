@@ -1,8 +1,10 @@
-# Herogu backend
+# Herogu
+
+![Herogu](https://user-images.githubusercontent.com/26095587/160254234-e7fc35bf-dceb-48c9-9e6c-879e74b41210.jpg)
 
 ## Requirements
 This project uses:
-* Angular & Material for the [front-office](https://github.com/garage-isep/herogu-front) and [back-office](https://github.com/garage-isep/herogu-admin).
+* Angular & Material for the [public dashboard](https://github.com/garage-isep/herogu-front) and [admin dashboard](https://github.com/garage-isep/herogu-admin).
 * Docker for project containerisation & management with the [Docker engine api](https://docs.docker.com/engine/api/v1.41/) and [Dockerode](https://www.npmjs.com/package/dockerode) as wrapper.
 * [Traefik](https://doc.traefik.io/traefik/) for project routing & https signing. 
 * [Cloudflare](https://cloudflare.com) for dns wildcard & https signing.
