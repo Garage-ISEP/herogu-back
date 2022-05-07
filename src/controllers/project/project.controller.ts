@@ -1,20 +1,13 @@
 import { ProjectRepository } from 'src/database/project/project.repository';
 import { UserRepository } from './../../database/user/user.repository';
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { Collaborator, Role } from 'src/database/collaborator/collaborator.entity';
-import { Project, ProjectType } from 'src/database/project/project.entity';
 import { User } from 'src/database/user/user.entity';
 import { CurrentUser } from 'src/decorators/current-user.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { GithubService } from 'src/services/github.service';
 import { AppLogger } from 'src/utils/app-logger.util';
 import { CreateProjectDto } from './project.dto';
-import { PhpInfo } from 'src/database/project/php-info.entity';
-import { MysqlInfo } from 'src/database/project/mysql-info.entity';
-import { NginxInfo } from 'src/database/project/nginx-info.entity';
-import { createQueryBuilder } from 'typeorm';
 import { CollaboratorRepository } from 'src/database/collaborator/collaborator.repository';
-import { InjectRepository } from '@nestjs/typeorm';
 
 @Controller('project')
 @UseGuards(AuthGuard)
