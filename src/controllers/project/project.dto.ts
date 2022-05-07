@@ -1,7 +1,7 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsHash, IsObject, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsHash, IsObject, IsOptional, IsString, IsUrl, Matches } from "class-validator";
 
 export class CreateProjectDto {
-  @Matches(/^(?!(create|admin|garage|isep|herogu|-))([a-z-0-9-]{3,15})(?<!-)$/)
+  @Matches(/^(?!(create|admin|garage|isep|herogu|auth|phpmyadmin|portainer|traefik|data|post|get|put|dashboard|dash|board|-))([a-z-0-9-]{3,15})(?<!-)$/)
   public name: string;
 
   @IsUrl()
