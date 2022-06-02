@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/docker-php-base.yml"
-      - "config/php/Dockerfile.base"
+      - "config/php/*"
 
 env:
   IMAGE_NAME: herogu-php-base
