@@ -24,7 +24,7 @@
     "@nestjs/core": "^8.2.6",
     "@nestjs/platform-express": "^8.2.6",
     "@nestjs/swagger": "^5.2.0",
-    "@nestjs/typeorm": "^8.0.3",
+    "@nestjs/typeorm": "8.0.3",
     "@nestlab/google-recaptcha": "^2.1.1",
     "@octokit/auth-app": "^3.6.0",
     "@octokit/webhooks": "^9.14.1",
@@ -46,7 +46,7 @@
     "rxjs": "^7.5.2",
     "string-template": "^1.0.0",
     "swagger-ui-express": "^4.1.6",
-    "typeorm": "^0.2.41"
+    "typeorm": "0.2.41"
   },
   "devDependencies": {
     "@nestjs/cli": "^7.5.1",
