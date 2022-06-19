@@ -250,7 +250,7 @@ export class GithubService implements OnModuleInit {
       // In case of enabled notifications we send a notification to all the project collaborators
       if (project.notificationsEnabled) {
         await this._mailer.sendMailToProject(project, `
-          Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()}
+          Le projet ${project.name} à été correctement mis à jour le ${new Date().toLocaleString()} suite au push de ${event.commits[0]?.author?.name}
         `);
       }
     } catch (e) {
