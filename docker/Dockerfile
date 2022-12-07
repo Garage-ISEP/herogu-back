@@ -1,23 +1,17 @@
 
-FROM node:15-alpine as builder
-
-## Install build toolchain, install node deps and compile native add-ons
-RUN apk add --no-cache python make g++
+FROM node:16-alpine as builder
 
 WORKDIR /app
 
 COPY . .
 
-RUN npm it typescript -g
+RUN yarn
 
-RUN npm it --legacy-peer-deps
-
-RUN npm run build
-
-RUN npm prune --production
+RUN yarn run build
 
 
-FROM node:15-alpine
+
+FROM node:16-alpine
 
 WORKDIR /app
 
@@ -27,4 +21,4 @@ COPY package.json .
 
 COPY --from=builder /app /app
 
-CMD ["npm", "run", "start:prod"]
+CMD ["yarn", "run", "start:prod"]
