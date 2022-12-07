@@ -28,7 +28,7 @@
     "@nestlab/google-recaptcha": "^2.1.1",
     "@octokit/auth-app": "^3.6.0",
     "@octokit/webhooks": "^9.14.1",
-    "class-transformer": "^0.4.0",
+    "class-transformer": "0.4.0",
     "class-validator": "^0.13.1",
     "dockerode": "^3.3.1",
     "eventsource": "^1.1.0",
