@@ -36,12 +36,8 @@ export class AuthController {
     const token = await this._sso.login(creds.studentId, creds.password);
     if (!user && !creds.admin) {
       const ssoUser = await this._sso.getUser(token);
-      const groups = ssoUser.groups.split('; ');
       const now = new Date();
       const graduatingYear = (now.getMonth() < 10 ? now.getFullYear() - 1 : now.getFullYear()) + 3;
-      // We verify that the user is in the A1 group for the graduating year
-      if (!groups.includes('eleve') || ssoUser.titre != 'ING-A1-' + graduatingYear)
-        throw new ForbiddenException({ message: "You are not allowed to login", reason: "promotion" });
       user = await this._userRepo.create({
         firstName: ssoUser.prenom,
         lastName: ssoUser.nom,
