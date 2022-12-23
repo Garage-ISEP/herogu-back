@@ -34,7 +34,7 @@
     "eventsource": "^1.1.0",
     "form-data": "^4.0.0",
     "fs-extra": "^9.1.0",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.0",
     "mysql2": "^2.3.3",
     "node-sql-parser": "^3.6.9",
     "nodemailer": "^6.6.3",
