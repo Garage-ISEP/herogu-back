@@ -106,8 +106,6 @@ dist
 # TernJS port file
 .tern-port
 
-package-lock.json
-
 # Mail Configuration
 mail.conf.json
 
