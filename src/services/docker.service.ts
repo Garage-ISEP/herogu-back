@@ -402,12 +402,11 @@ export class DockerService implements OnModuleInit {
   private async _buildImageFromRemote(url: string, tag: string, lastCommitSha?: string): Promise<void> {
     try {
       const token = await this._github.getInstallationToken(url);
-      const mainBranch = await this._github.getMainBranch(url);
       const [owner, repo] = url.split("/").slice(-2);
       // We fetch the last commit sha if it's not given
       lastCommitSha ??= await this._github.getLastCommitSha(url);
       // Git url with access token included
-      url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git#${mainBranch}`;
+      url = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
       this._logger.log("Building image from remote: " + url);
       const stream = await this._docker.buildImage({ context: ".", src: [] }, {
         t: tag,
